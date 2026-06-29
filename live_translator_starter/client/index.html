@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live Translator Starter</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Real-time speech translation starter</p>
+          <h1>Live Translator</h1>
+          <p class="subtitle">Mic → WebRTC → ASR → translation → TTS. The first build uses fake AI modules so you can wire up the app safely.</p>
+        </div>
+        <div class="status-card">
+          <span id="connectionDot" class="dot"></span>
+          <span id="connectionStatus">Idle</span>
+        </div>
+      </section>
+
+      <section class="panel controls">
+        <label>
+          Source language
+          <select id="sourceLanguage">
+            <option value="ja" selected>Japanese</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+
+        <label>
+          Target language
+          <select id="targetLanguage">
+            <option value="en" selected>English</option>
+            <option value="ja">Japanese</option>
+          </select>
+        </label>
+
+        <label>
+          Translation model
+          <select id="modelName">
+            <option value="fake" selected>Fake translator</option>
+            <option value="tencent/Hy-MT2-1.8B">Hy-MT2-1.8B</option>
+            <option value="cyberagent/CAT-Translate-3.3b">CAT-Translate-3.3B</option>
+            <option value="Qwen/Qwen3-8B">Qwen3-8B</option>
+          </select>
+        </label>
+
+        <label class="check-row">
+          <input id="browserTts" type="checkbox" checked />
+          Use browser TTS placeholder
+        </label>
+
+        <label class="check-row">
+          <input id="voiceMatching" type="checkbox" />
+          Enable voice matching placeholder
+        </label>
+
+        <div class="button-row">
+          <button id="startButton" class="primary">Start session</button>
+          <button id="stopButton" disabled>Stop</button>
+        </div>
+      </section>
+
+      <section class="grid">
+        <article class="panel transcript-card">
+          <div class="panel-title">
+            <h2>Source transcript</h2>
+            <span class="pill">ASR</span>
+          </div>
+          <div id="sourceTranscript" class="transcript empty">Waiting for speech...</div>
+        </article>
+
+        <article class="panel transcript-card">
+          <div class="panel-title">
+            <h2>Translation</h2>
+            <span class="pill">MT + TTS</span>
+          </div>
+          <div id="translationTranscript" class="transcript empty">Waiting for translated text...</div>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Event log</h2>
+          <button id="clearLogButton" class="ghost">Clear</button>
+        </div>
+        <pre id="eventLog" class="log"></pre>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "voices": [
+    {
+      "voice_id": "en-neutral-medium-01",
+      "language": "en",
+      "presentation": "neutral",
+      "pitch_bucket": "medium"
+    },
+    {
+      "voice_id": "en-masculine-low-01",
+      "language": "en",
+      "presentation": "masculine",
+      "pitch_bucket": "low"
+    },
+    {
+      "voice_id": "ja-feminine-high-01",
+      "language": "ja",
+      "presentation": "feminine",
+      "pitch_bucket": "high"
+    }
+  ]
+}
