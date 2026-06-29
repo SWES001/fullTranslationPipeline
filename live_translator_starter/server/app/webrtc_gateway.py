@@ -9,6 +9,8 @@ from aiortc.mediastreams import MediaStreamTrack
 from server.app.config import config
 from server.app.pipeline.session import TranslationSession
 from server.app.schemas import OfferRequest
+from server.app.pipeline.vad import WebRTCEndpointDetector
+import av
 
 
 PEER_CONNECTIONS: set[RTCPeerConnection] = set()
@@ -29,6 +31,7 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
         source_language=request.source_language,
         target_language=request.target_language,
         model_name=request.model,
+        asr_model=request.asr_model,
         voice_matching=request.voice_matching,
     )
     data_channel: Optional[RTCDataChannel] = None
@@ -77,16 +80,13 @@ async def consume_audio_track(
     session: TranslationSession,
     emit: Callable[[dict], Awaitable[None]],
 ) -> None:
-    """Collect WebRTC audio frames and pass windows into the AI pipeline.
-
-    aiortc decodes the browser's Opus audio and exposes PCM-like AudioFrame
-    objects. The fake pipeline ignores the actual audio, but this function is
-    where a real ASR implementation would resample and feed frames to the
-    model.
-    """
+    """Collect WebRTC audio frames, run VAD, and feed sentences to ASR."""
 
     frames = []
-    accumulated_seconds = 0.0
+    detector = WebRTCEndpointDetector()
+    
+    # We resample browser audio to 16kHz mono (standard format for VAD and ASR)
+    resampler = av.AudioResampler(format='s16', layout='mono', rate=16000)
 
     while True:
         try:
@@ -95,17 +95,27 @@ async def consume_audio_track(
             await emit({"type": "track_closed", "detail": str(exc)})
             return
 
-        frames.append(frame)
-        sample_rate = getattr(frame, "sample_rate", 48000) or 48000
-        samples = getattr(frame, "samples", 0) or 0
-        accumulated_seconds += samples / sample_rate
-
-        if accumulated_seconds >= config.fake_chunk_seconds:
-            event = await session.process_audio_window(frames)
-            if event:
-                await emit(event)
-            frames = []
-            accumulated_seconds = 0.0
+        # Resample the browser's raw audio frame
+        resampled_frames = resampler.resample(frame)
+        
+        for r_frame in resampled_frames:
+            # Convert audio samples to raw bytes
+            pcm_bytes = r_frame.to_ndarray().tobytes()
+            
+            # Feed bytes into VAD to check if user is speaking or silent
+            endpoint_triggered = detector.process_audio_chunk(pcm_bytes)
+            
+            # If the user is speaking, accumulate the frame
+            if detector.in_speech:
+                frames.append(r_frame)
+                
+            # If the user stopped speaking (endpoint triggered), send to ASR!
+            if endpoint_triggered:
+                if frames:
+                    event = await session.process_audio_window(frames)
+                    if event:
+                        await emit(event)
+                    frames = []
 
 
 async def shutdown_peer_connections() -> None:

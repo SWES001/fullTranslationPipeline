@@ -10,7 +10,7 @@
     <main class="shell">
       <section class="hero">
         <div>
-          <p class="eyebrow">Real-time speech translation starter</p>
+          <p class="eyebrow">Real-time speech translation app</p>
           <h1>Live Translator</h1>
           <p class="subtitle">Mic → WebRTC → ASR → translation → TTS. The first build uses fake AI modules so you can wire up the app safely.</p>
         </div>
@@ -38,10 +38,18 @@
         </label>
 
         <label>
+          ASR model
+          <select id="asrModel">
+            <option value="Qwen/Qwen3-ASR-1.7B" selected> Qwen3 ASR</option>
+            <option value="openai/whisper-large-v3">FastWhisper ASR</option>
+            <option value="CohereLabs/cohere-transcribe-03-2026">Cohere ASR</option>
+          </select>
+        </label>
+
+        <label>
           Translation model
           <select id="modelName">
-            <option value="fake" selected>Fake translator</option>
-            <option value="tencent/Hy-MT2-1.8B">Hy-MT2-1.8B</option>
+            <option value="tencent/Hy-MT2-1.8B" selected>Hy-MT2-1.8B</option>
             <option value="cyberagent/CAT-Translate-3.3b">CAT-Translate-3.3B</option>
             <option value="Qwen/Qwen3-8B">Qwen3-8B</option>
           </select>

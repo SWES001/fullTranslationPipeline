@@ -2,9 +2,9 @@ from dataclasses import dataclass, field
 from typing import Iterable, Optional
 from uuid import uuid4
 
-from server.app.pipeline.asr import FakeASR
+from server.app.pipeline.asr import FakeASR, QwenASR, FastWhisperASR, CohereASR
 from server.app.pipeline.stable_buffer import StableTextBuffer
-from server.app.pipeline.translator import FakeTranslator
+from server.app.pipeline.translator import FakeTranslator, HyMT2Translator
 from server.app.pipeline.voice_selector import VoiceSelector
 
 
@@ -13,12 +13,23 @@ class TranslationSession:
     source_language: str
     target_language: str
     model_name: str
+    asr_model: str = "fake"
     voice_matching: bool = False
     session_id: str = field(default_factory=lambda: str(uuid4()))
 
     def __post_init__(self) -> None:
-        self.asr = FakeASR()
-        self.translator = FakeTranslator(model_name=self.model_name)
+        if self.asr_model == "openai/whisper-large-v3":
+         self.asr = FastWhisperASR(server_ip="74.2.96.26")
+        elif self.asr_model == "Qwen/Qwen3-ASR-1.7B":
+         self.asr = QwenASR(server_ip="74.2.96.26")
+        elif self.asr_model == "CohereLabs/cohere-transcribe-03-2026":
+         self.asr = CohereASR(server_ip="74.2.96.26")
+        else:
+         self.asr = FakeASR()
+        if self.model_name == "tencent/Hy-MT2-1.8B":
+            self.translator = HyMT2Translator()
+        else:
+            self.translator = FakeTranslator(model_name=self.model_name)
         self.stable_buffer = StableTextBuffer()
         self.voice_selector = VoiceSelector()
 
