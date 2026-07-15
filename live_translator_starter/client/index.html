@@ -10,9 +10,9 @@
     <main class="shell">
       <section class="hero">
         <div>
-          <p class="eyebrow">Real-time speech translation starter</p>
+          <p class="eyebrow">Real-time speech translator</p>
           <h1>Live Translator</h1>
-          <p class="subtitle">Mic → WebRTC → ASR → translation → TTS. The first build uses fake AI modules so you can wire up the app safely.</p>
+          <p class="subtitle">Mic → WebRTC → ASR → translation → TTS.</p>
         </div>
         <div class="status-card">
           <span id="connectionDot" class="dot"></span>
@@ -51,9 +51,18 @@
         <label>
           Translation model
           <select id="modelName">
-            <option value="tencent/Hy-MT2-1.8B" selected>Hy-MT2-1.8B</option>
+            <option value="bytecompute/gemma-4-E4B-it" selected>Gemma 4 E4B (ByteCompute API)</option>
+            <option value="tencent/Hy-MT2-1.8B">Hy-MT2-1.8B</option>
             <option value="cyberagent/CAT-Translate-3.3b">CAT-Translate-3.3B</option>
             <option value="Qwen/Qwen3-8B">Qwen3-8B</option>
+          </select>
+        </label>
+
+        <label>
+          TTS model
+          <select id="ttsModel">
+            <option value="boson/higgs-audio-v2.5" selected>Higgs Audio V2.5 (ByteCompute API)</option>
+            <option value="Moss-TTS-v1.5">Moss-TTS-v1.5</option>
           </select>
         </label>
 

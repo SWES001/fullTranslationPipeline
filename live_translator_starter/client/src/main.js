@@ -11,6 +11,7 @@ const els = {
   sourceLanguage: document.querySelector('#sourceLanguage'),
   targetLanguage: document.querySelector('#targetLanguage'),
   modelName: document.querySelector('#modelName'),
+  ttsModel: document.querySelector('#ttsModel'),
   asrModel: document.querySelector('#asrModel'),
   browserTts: document.querySelector('#browserTts'),
   voiceMatching: document.querySelector('#voiceMatching'),
@@ -19,7 +20,10 @@ const els = {
   eventLog: document.querySelector('#eventLog'),
 };
 
-els.startButton.addEventListener('click', startSession);
+els.startButton.addEventListener('click', () => {
+  unlockAudio();
+  startSession();
+});
 els.stopButton.addEventListener('click', stopSession);
 els.clearLogButton.addEventListener('click', () => { els.eventLog.textContent = ''; });
 
@@ -72,6 +76,7 @@ async function startSession() {
         target_language: els.targetLanguage.value,
         model: els.modelName.value,
         asr_model: els.asrModel.value,
+        tts_model: els.ttsModel.value,
         voice_matching: els.voiceMatching.checked,
       }),
     });
@@ -127,10 +132,16 @@ function handleServerEvent(rawData) {
   if (message.type === 'translation') {
     appendUtterance(els.sourceTranscript, message.source.text);
     appendUtterance(els.translationTranscript, message.translation.text);
-    logEvent(`Translated with ${message.translation.model}: ${message.translation.text}`);
+    const ttftStr = message.ttft_ms !== undefined ? ` [TTFT: ${message.ttft_ms}ms]` : '';
+    const ttfaStr = message.ttfa_ms !== undefined ? ` [TTFA: ${message.ttfa_ms}ms]` : '';
+    logEvent(`Translated with ${message.translation.model}: ${message.translation.text}${ttftStr}${ttfaStr}`);
 
     if (els.browserTts.checked) {
       speak(message.translation.text, els.targetLanguage.value);
+    } else if (message.audio && message.audio.data) {
+      const audioUrl = `data:${message.audio.content_type};base64,${message.audio.data}`;
+      const audio = new Audio(audioUrl);
+      audio.play().catch(err => logEvent(`Audio play error: ${err.message}`));
     }
     return;
   }
@@ -190,3 +201,24 @@ function waitForIceGatheringComplete(pc) {
     pc.addEventListener('icegatheringstatechange', checkState);
   });
 }
+
+
+let unlockedAudioContext = null;
+
+function unlockAudio() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      unlockedAudioContext = new AudioContextClass();
+      if (unlockedAudioContext.state === 'suspended') {
+        unlockedAudioContext.resume();
+      }
+    }
+    // Play a brief silent sound to unlock standard Audio tag autoplay in Chrome/Safari/iOS
+    const silentBeep = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");
+    silentBeep.play().catch(() => {});
+  } catch (e) {
+    logEvent(`Audio unlock warning: ${e.message}`);
+  }
+}
+

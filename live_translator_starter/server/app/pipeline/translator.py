@@ -71,3 +71,52 @@ class HyMT2Translator:
             except Exception as e:
                 print(f"Translation Error: {e}")
                 return f"[Translation Error: {e}] {text}"
+
+
+class ByteComputeTranslator:
+    """Connects to ByteCompute's serverless AI API gateway."""
+    def __init__(self, api_key: str = "bytecompute_RvJjDWOF_LhtSI4TXqabrSCqQHcMfxNF"):
+        self.url = "https://us-01.bytecompute.ai/v1/chat/completions"
+        self.model_name = "gemma-4-E4B-it"
+        self.api_key = api_key
+
+    async def translate(self, text: str, source_language: str, target_language: str) -> str:
+        # Map short language codes to full names for the model's instructions
+        lang_names = {
+            "en": "English",
+            "ja": "Japanese",
+            "es": "Spanish"
+        }
+        src = lang_names.get(source_language, "English")
+        tgt = lang_names.get(target_language, "Japanese")
+        
+        prompt = (
+            f"Translate the following {src} text into {tgt}. "
+            "Only return the translated text itself, without any introduction, explanation, or quotes.\n\n"
+            f"{text}"
+        )
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        payload = {
+            "model": self.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.0,
+            "max_tokens": 256,
+        }
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.url, json=payload, headers=headers, timeout=30.0)
+                response.raise_for_status()
+                result = response.json()
+                translation = result["choices"][0]["message"]["content"].strip()
+                print(f"Gemma 4 Translated: '{translation}'")
+                return translation
+            except Exception as e:
+                import traceback
+                print("ByteCompute Translator Exception Traceback:")
+                traceback.print_exc()
+                return f"[Translation Error: {e}] {text}"
+

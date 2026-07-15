@@ -32,6 +32,7 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
         target_language=request.target_language,
         model_name=request.model,
         asr_model=request.asr_model,
+        tts_model=request.tts_model,
         voice_matching=request.voice_matching,
     )
     data_channel: Optional[RTCDataChannel] = None

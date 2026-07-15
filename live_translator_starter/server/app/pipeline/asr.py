@@ -103,15 +103,18 @@ class QwenASR:
                 response = await client.post(self.url, headers=headers, files=files, data=data, timeout=10.0)
                 response.raise_for_status()
                 result = response.json()
-                
+                text = result.get("text", "")
+                print(f"Qwen3 ASR Transcribed: '{text}'")
                 return ASRResult(
-                    text=result.get("text", ""),
+                    text=text,
                     is_final=True,
                     confidence=0.99,
                     language=source_language,
                 )
             except Exception as e:
-                print(f"Qwen ASR Connection Error: {e}")
+                import traceback
+                print("Qwen ASR Exception Traceback:")
+                traceback.print_exc()
                 return ASRResult(
                     text=f"[ASR Connection Error: {e}]",
                     is_final=True,
