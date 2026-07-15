@@ -11,6 +11,7 @@ const els = {
   sourceLanguage: document.querySelector('#sourceLanguage'),
   targetLanguage: document.querySelector('#targetLanguage'),
   modelName: document.querySelector('#modelName'),
+  asrModel: document.querySelector('#asrModel'),
   browserTts: document.querySelector('#browserTts'),
   voiceMatching: document.querySelector('#voiceMatching'),
   sourceTranscript: document.querySelector('#sourceTranscript'),
@@ -70,6 +71,7 @@ async function startSession() {
         source_language: els.sourceLanguage.value,
         target_language: els.targetLanguage.value,
         model: els.modelName.value,
+        asr_model: els.asrModel.value,
         voice_matching: els.voiceMatching.checked,
       }),
     });

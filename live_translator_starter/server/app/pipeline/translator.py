@@ -1,16 +1,14 @@
+import httpx
 from dataclasses import dataclass
 from typing import Protocol
-
 
 class Translator(Protocol):
     async def translate(self, text: str, source_language: str, target_language: str) -> str:
         ...
 
-
 @dataclass
 class FakeTranslator:
     """Fake translator used while the audio/WebRTC plumbing is being built."""
-
     model_name: str = "fake"
 
     async def translate(self, text: str, source_language: str, target_language: str) -> str:
@@ -29,3 +27,47 @@ class FakeTranslator:
         if source_language == "en" and target_language == "ja":
             return en_to_ja.get(text, f"[fake JA translation] {text}")
         return text
+
+class HyMT2Translator:
+    """Connects to your company's Hy-MT2-1.8B vLLM translation server."""
+    def __init__(self, server_ip: str = "74.2.96.26", port: int = 32232):
+        self.url = f"http://{server_ip}:{port}/v1/chat/completions"
+        self.model_name = "/model-weights"
+        self.api_key = "sk-proj-8-W-hNfM9cJ_t_gL4pQ4k_t2sXzY9uW9O0iZ7bA"
+
+    async def translate(self, text: str, source_language: str, target_language: str) -> str:
+        # Map short language codes to full names for the model's instructions
+        lang_names = {
+            "en": "English",
+            "ja": "Japanese",
+            "es": "Spanish"
+        }
+        src = lang_names.get(source_language, "English")
+        tgt = lang_names.get(target_language, "Japanese")
+        
+        prompt = (
+            f"Translate the following {src} text into {tgt}. "
+            "Only return the translated text itself, without any introduction, explanation, or quotes.\n\n"
+            f"{text}"
+        )
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        payload = {
+            "model": self.model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.0,
+            "max_tokens": 256,
+        }
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.url, json=payload, headers=headers, timeout=10.0)
+                response.raise_for_status()
+                result = response.json()
+                translation = result["choices"][0]["message"]["content"].strip()
+                return translation
+            except Exception as e:
+                print(f"Translation Error: {e}")
+                return f"[Translation Error: {e}] {text}"
