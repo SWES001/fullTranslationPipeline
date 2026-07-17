@@ -6,7 +6,7 @@ from server.app.pipeline.asr import FakeASR, QwenASR, FastWhisperASR, CohereASR
 from server.app.pipeline.stable_buffer import StableTextBuffer
 from server.app.pipeline.translator import FakeTranslator, HyMT2Translator, ByteComputeTranslator
 from server.app.pipeline.voice_selector import VoiceSelector
-from server.app.pipeline.tts import FakeTTS, MossTTS, HiggsAudioTTS
+from server.app.pipeline.tts import FakeTTS, MossTTS, HiggsAudioTTS, Qwen3TTS
 
 
 @dataclass
@@ -38,6 +38,8 @@ class TranslationSession:
 
         if self.tts_model == "Moss-TTS-v1.5":
             self.tts = MossTTS(server_ip="74.2.96.26", port=31240)
+        elif self.tts_model == "Qwen3-TTS-1.7B":
+            self.tts = Qwen3TTS(server_ip="74.2.96.26", port=31411)
         elif self.tts_model in ("boson/higgs-audio-v2.5", "boson-audio-multimodal-checkpoint-1200"):
             self.tts = HiggsAudioTTS()
         else:

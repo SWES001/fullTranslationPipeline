@@ -1,0 +1,1 @@
+{"error":{"message":"This model does not support CustomVoice task (no speakers configured). Use task_type='Base' with ref_audio/ref_text for voice cloning, or use a CustomVoice model.","type":"BadRequestError","param":null,"code":400}}

@@ -95,10 +95,23 @@ class QwenASR:
             files = {
                 "file": ("audio.wav", wav_bytes, "audio/wav")
             }
+            
+            # Language lock prompts to prevent the model from hallucinating other languages
+            prompt_map = {
+                "en": "English speech transcription.",
+                "ja": "日本語の文字起こし。",
+                "es": "Transcripción de voz en español.",
+                "zh": "中文语音识别。"
+            }
+            prompt_text = prompt_map.get(source_language, "")
+            
             data = {
                 "model": self.model_name,
                 "language": source_language,
             }
+            if prompt_text:
+                data["prompt"] = prompt_text
+                
             try:
                 response = await client.post(self.url, headers=headers, files=files, data=data, timeout=10.0)
                 response.raise_for_status()
@@ -185,14 +198,21 @@ class CohereASR:
             files = {
                 "file": ("audio.wav", wav_bytes, "audio/wav")
             }
-            # Optional language hint prompt
-            prompt_text = "English speech transcription." if source_language == "en" else "日本語の文字起こし。"
+            # Language lock prompts to prevent the model from hallucinating other languages
+            prompt_map = {
+                "en": "English speech transcription.",
+                "ja": "日本語の文字起こし。",
+                "es": "Transcripción de voz en español.",
+                "zh": "中文语音识别。"
+            }
+            prompt_text = prompt_map.get(source_language, "")
             
             data = {
                 "model": self.model_name,
                 "language": source_language,
-                "prompt": prompt_text,
             }
+            if prompt_text:
+                data["prompt"] = prompt_text
             try:
                 response = await client.post(self.url, files=files, data=data, timeout=10.0)
                 response.raise_for_status()

@@ -40,7 +40,8 @@ class HyMT2Translator:
         lang_names = {
             "en": "English",
             "ja": "Japanese",
-            "es": "Spanish"
+            "es": "Spanish",
+            "zh": "Mandarin Chinese"
         }
         src = lang_names.get(source_language, "English")
         tgt = lang_names.get(target_language, "Japanese")
@@ -85,7 +86,8 @@ class ByteComputeTranslator:
         lang_names = {
             "en": "English",
             "ja": "Japanese",
-            "es": "Spanish"
+            "es": "Spanish",
+            "zh": "Mandarin Chinese"
         }
         src = lang_names.get(source_language, "English")
         tgt = lang_names.get(target_language, "Japanese")

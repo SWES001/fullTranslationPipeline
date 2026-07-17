@@ -52,6 +52,65 @@ class MossTTS:
                 )
 
 
+class Qwen3TTS:
+    """Connects to Qwen3-TTS-1.7B running on your company server."""
+
+    def __init__(self, server_ip: str = "74.2.96.26", port: int = 31411):
+        self.url = f"http://{server_ip}:{port}/v1/audio/speech"
+        self.model_name = "/models/Qwen3-TTS-12Hz-1.7B-Base"
+
+    async def synthesize(self, text: str, voice_id: str) -> TTSResult:
+        import base64
+        import os
+        
+        audio_b64 = ""
+        ref_path = "reference.wav"
+        if os.path.exists(ref_path):
+            with open(ref_path, "rb") as f:
+                audio_b64 = "data:audio/wav;base64," + base64.b64encode(f.read()).decode("utf-8")
+                
+        payload = {
+            "model": self.model_name,
+            "input": text,
+            "response_format": "wav"
+        }
+        if audio_b64:
+            payload["task_type"] = "Base"
+            payload["ref_audio"] = audio_b64
+            payload["x_vector_only_mode"] = True
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.url, json=payload, timeout=120.0)
+                response.raise_for_status()
+                print(f"Qwen3 TTS Synthesized: {len(response.content)} bytes")
+                return TTSResult(
+                    audio_bytes=response.content,
+                    content_type="audio/wav",
+                    voice_id=voice_id
+                )
+            except httpx.HTTPStatusError as e:
+                import traceback
+                print("Qwen3 TTS Exception Traceback:")
+                print(f"Response Body: {e.response.text}")
+                traceback.print_exc()
+                return TTSResult(
+                    audio_bytes=b"",
+                    content_type="audio/wav",
+                    voice_id=voice_id
+                )
+            except Exception as e:
+                import traceback
+                print("Qwen3 TTS General Exception Traceback:")
+                traceback.print_exc()
+                return TTSResult(
+                    audio_bytes=b"",
+                    content_type="audio/wav",
+                    voice_id=voice_id
+                )
+
+
+
 class HiggsAudioTTS:
     """Connects to ByteCompute's Higgs Audio V2.5 serverless TTS engine."""
 

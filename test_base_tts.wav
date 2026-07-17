@@ -1,0 +1,1 @@
+{"error":{"message":"Base task requires 'ref_audio' or 'speaker_embedding' for voice cloning","type":"BadRequestError","param":null,"code":400}}
