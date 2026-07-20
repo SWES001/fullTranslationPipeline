@@ -64,7 +64,7 @@ class HyMT2Translator:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(self.url, json=payload, headers=headers, timeout=10.0)
+                response = await client.post(self.url, json=payload, headers=headers, timeout=60.0)
                 response.raise_for_status()
                 result = response.json()
                 translation = result["choices"][0]["message"]["content"].strip()

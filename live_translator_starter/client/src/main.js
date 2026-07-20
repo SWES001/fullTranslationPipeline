@@ -132,9 +132,17 @@ function handleServerEvent(rawData) {
   if (message.type === 'translation') {
     appendUtterance(els.sourceTranscript, message.source.text);
     appendUtterance(els.translationTranscript, message.translation.text);
-    const ttftStr = message.ttft_ms !== undefined ? ` [TTFT: ${message.ttft_ms}ms]` : '';
-    const ttfaStr = message.ttfa_ms !== undefined ? ` [TTFA: ${message.ttfa_ms}ms]` : '';
-    logEvent(`Translated with ${message.translation.model}: ${message.translation.text}${ttftStr}${ttfaStr}`);
+
+    const asrStr = message.asr_ms !== undefined ? `ASR: ${message.asr_ms}ms` : '';
+    const transStr = message.trans_ms !== undefined ? `Trans: ${message.trans_ms}ms` : '';
+    const ttftStr = message.ttft_ms !== undefined ? `TTFT: ${message.ttft_ms}ms` : '';
+    const ttsStr = message.tts_ms !== undefined ? `TTS: ${message.tts_ms}ms` : '';
+    const ttfaStr = message.ttfa_ms !== undefined ? `TTFA: ${message.ttfa_ms}ms` : '';
+
+    const breakdown = [asrStr, transStr, ttftStr, ttsStr, ttfaStr].filter(Boolean).join(' | ');
+    const breakdownMsg = breakdown ? ` [${breakdown}]` : '';
+
+    logEvent(`Translated with ${message.translation.model}: ${message.translation.text}${breakdownMsg}`);
 
     if (els.browserTts.checked) {
       speak(message.translation.text, els.targetLanguage.value);
@@ -142,12 +150,15 @@ function handleServerEvent(rawData) {
       const audioUrl = `data:${message.audio.content_type};base64,${message.audio.data}`;
       const audio = new Audio(audioUrl);
       audio.play().catch(err => logEvent(`Audio play error: ${err.message}`));
+    } else if (message.audio && message.audio.error) {
+      logEvent(`TTS Error: ${message.audio.error}`);
     }
     return;
   }
 
   if (message.type === 'asr_partial') {
-    logEvent(`ASR partial: ${message.source.text}`);
+    const asrStr = message.asr_ms !== undefined ? ` [ASR: ${message.asr_ms}ms]` : '';
+    logEvent(`ASR partial: ${message.source.text}${asrStr}`);
     return;
   }
 

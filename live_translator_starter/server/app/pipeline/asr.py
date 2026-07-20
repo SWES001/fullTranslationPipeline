@@ -75,10 +75,12 @@ class FakeASR:
 
 
 class QwenASR:
-    """Connects to your company's Qwen3 vLLM ASR server."""
+    """Connects to your company's Qwen3 vLLM ASR server (UNWIRED / DISABLED)."""
 
     def __init__(self, server_ip: str = "74.2.96.26", port: int = 30407):
-        self.url = f"http://{server_ip}:{port}/v1/audio/transcriptions"
+        # UNWIRED: Qwen3 disabled per requirement
+        # self.url = f"http://{server_ip}:{port}/v1/audio/transcriptions"
+        self.url = ""
         self.model_name = "Qwen/Qwen3-ASR-1.7B"
         self.api_key = "sk-proj-8-W-hNfM9cJ_t_gL4pQ4k_t2sXzY9uW9O0iZ7bA"
 
@@ -113,7 +115,7 @@ class QwenASR:
                 data["prompt"] = prompt_text
                 
             try:
-                response = await client.post(self.url, headers=headers, files=files, data=data, timeout=10.0)
+                response = await client.post(self.url, headers=headers, files=files, data=data, timeout=60.0)
                 response.raise_for_status()
                 result = response.json()
                 text = result.get("text", "")
@@ -126,10 +128,10 @@ class QwenASR:
                 )
             except Exception as e:
                 import traceback
-                print("Qwen ASR Exception Traceback:")
+                print(f"Qwen ASR Exception Traceback ({self.url}):")
                 traceback.print_exc()
                 return ASRResult(
-                    text=f"[ASR Connection Error: {e}]",
+                    text=f"[ASR Connection Error ({self.url}): {e}]",
                     is_final=True,
                     confidence=0.0,
                     language=source_language,
@@ -137,12 +139,12 @@ class QwenASR:
 
 
 class FastWhisperASR:
-    """Connects to your company's FastWhisper ASR server."""
+    """Connects to ByteCompute's serverless Whisper Large V3 ASR endpoint."""
 
-    def __init__(self, server_ip: str = "74.2.96.26", port: int = 30089):
-        self.url = f"http://{server_ip}:{port}/v1/audio/transcriptions"
+    def __init__(self, api_key: str = "bytecompute_RvJjDWOF_LhtSI4TXqabrSCqQHcMfxNF"):
+        self.url = "https://us-01.bytecompute.ai/v1/audio/transcriptions"
         self.model_name = "openai/whisper-large-v3"
-        self.api_key = "sk-proj-r-J-aPaMncE_e_gL1pQ9k_t2sXzY19W8Otok6YX"
+        self.api_key = api_key
 
     async def transcribe_pcm(self, frames: Iterable[object], source_language: str) -> ASRResult:
         wav_bytes = frames_to_wav_bytes(list(frames))
@@ -162,24 +164,30 @@ class FastWhisperASR:
                 "language": source_language,
             }
             try:
-                response = await client.post(self.url, headers=headers, files=files, data=data, timeout=10.0)
+                response = await client.post(self.url, headers=headers, files=files, data=data, timeout=60.0)
                 response.raise_for_status()
                 result = response.json()
-                
+                text = result.get("text", "").strip()
+                print(f"Whisper Large V3 ASR Transcribed: '{text}'")
                 return ASRResult(
-                    text=result.get("text", ""),
+                    text=text,
                     is_final=True,
                     confidence=0.99,
                     language=source_language,
                 )
             except Exception as e:
-                print(f"FastWhisper ASR Connection Error: {e}")
+                import traceback
+                print(f"Whisper Large V3 ASR Connection Error: {e}")
+                traceback.print_exc()
                 return ASRResult(
-                    text=f"[ASR Connection Error: {e}]",
+                    text=f"[Whisper ASR Error: {e}]",
                     is_final=True,
                     confidence=0.0,
                     language=source_language,
                 )
+
+
+ByteComputeWhisperASR = FastWhisperASR
 
 
 class CohereASR:
@@ -214,7 +222,7 @@ class CohereASR:
             if prompt_text:
                 data["prompt"] = prompt_text
             try:
-                response = await client.post(self.url, files=files, data=data, timeout=10.0)
+                response = await client.post(self.url, files=files, data=data, timeout=60.0)
                 response.raise_for_status()
                 result = response.json()
                 
@@ -232,4 +240,83 @@ class CohereASR:
                     confidence=0.0,
                     language=source_language,
                 )
+
+
+class ByteComputeGemmaASR:
+    """Connects to ByteCompute's serverless AI API for speech recognition."""
+
+    def __init__(self, api_key: str = "bytecompute_RvJjDWOF_LhtSI4TXqabrSCqQHcMfxNF"):
+        self.url = "https://us-01.bytecompute.ai/v1/chat/completions"
+        self.model_name = "gemma-4-E4B-it"
+        self.api_key = api_key
+
+    async def transcribe_pcm(self, frames: Iterable[object], source_language: str) -> ASRResult:
+        import base64
+
+        wav_bytes = frames_to_wav_bytes(list(frames))
+        if not wav_bytes:
+            return ASRResult(text="", is_final=True, confidence=0.0, language=source_language)
+
+        lang_names = {
+            "en": "English",
+            "ja": "Japanese",
+            "es": "Spanish",
+            "zh": "Mandarin Chinese"
+        }
+        lang_str = lang_names.get(source_language, "English")
+        audio_b64 = base64.b64encode(wav_bytes).decode("utf-8")
+
+        prompt_text = (
+            f"Transcribe the spoken audio accurately in {lang_str}. "
+            "Only return the exact transcribed text, without intro, quotes, or markdown."
+        )
+
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {
+                            "type": "input_audio",
+                            "input_audio": {
+                                "data": audio_b64,
+                                "format": "wav"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "temperature": 0.0
+        }
+        headers_json = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.url, json=payload, headers=headers_json, timeout=30.0)
+                response.raise_for_status()
+                result = response.json()
+                text = result["choices"][0]["message"]["content"].strip()
+                print(f"Gemma 4 E4B ASR Transcribed: '{text}'")
+                return ASRResult(
+                    text=text,
+                    is_final=True,
+                    confidence=0.99,
+                    language=source_language
+                )
+            except Exception as e:
+                import traceback
+                print(f"ByteCompute Gemma ASR Exception Traceback ({self.url}):")
+                traceback.print_exc()
+                return ASRResult(
+                    text=f"[Gemma ASR Error: {e}]",
+                    is_final=True,
+                    confidence=0.0,
+                    language=source_language
+                )
+
 

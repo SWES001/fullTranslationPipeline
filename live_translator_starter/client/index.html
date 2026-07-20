@@ -44,8 +44,10 @@
         <label>
           ASR model
           <select id="asrModel">
-            <option value="Qwen/Qwen3-ASR-1.7B" selected>Qwen3 ASR</option>
-            <option value="openai/whisper-large-v3">FastWhisper ASR</option>
+            <option value="fake">Fake ASR (Simulator / Offline)</option>
+            <option value="openai/whisper-large-v3" selected>Whisper Large V3 (ByteCompute API)</option>
+            <option value="bytecompute/gemma-4-E4B-it">Gemma 4 E4B (ByteCompute API)</option>
+            <option value="Qwen/Qwen3-ASR-1.7B">Qwen3 ASR</option>
             <option value="CohereLabs/cohere-transcribe-03-2026">Cohere ASR</option>
           </select>
         </label>
@@ -63,7 +65,9 @@
         <label>
           TTS model
           <select id="ttsModel">
-            <option value="boson/higgs-audio-v2.5" selected>Higgs Audio V2.5 (ByteCompute API)</option>
+            <option value="bytecompute/higgs-speech-v3" selected>Higgs Speech V3 (ByteCompute API)</option>
+            <option value="Higgs-TTS-v3">Higgs-TTS-v3 (Port 31250)</option>
+            <option value="boson/higgs-audio-v2.5">Higgs Audio V2.5 (ByteCompute API)</option>
             <option value="Moss-TTS-v1.5">Moss-TTS-v1.5</option>
             <option value="Qwen3-TTS-1.7B">Qwen3-TTS-1.7B</option>
           </select>
