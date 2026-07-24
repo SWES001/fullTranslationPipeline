@@ -7,7 +7,7 @@ from server.app.pipeline.asr import FakeASR, QwenASR, FastWhisperASR, CohereASR,
 from server.app.pipeline.stable_buffer import StableTextBuffer
 from server.app.pipeline.translator import FakeTranslator, HyMT2Translator, ByteComputeTranslator
 from server.app.pipeline.voice_selector import VoiceSelector
-from server.app.pipeline.tts import FakeTTS, MossTTS, HiggsAudioTTS, Qwen3TTS, HiggsTTSv3, ByteComputeHiggsSpeechV3
+from server.app.pipeline.tts import FakeTTS, MossTTS, HiggsAudioTTS, Qwen3TTS, HiggsTTSv3, ByteComputeHiggsSpeechV3, KokoroServerTTS
 
 
 @dataclass
@@ -16,7 +16,7 @@ class TranslationSession:
     target_language: str
     model_name: str
     asr_model: str = "fake"
-    tts_model: str = "bytecompute/higgs-speech-v3"
+    tts_model: str = "Kokoro-82M-Server"
     voice_matching: bool = False
     session_id: str = field(default_factory=lambda: str(uuid4()))
 
@@ -39,7 +39,9 @@ class TranslationSession:
         else:
             self.translator = FakeTranslator(model_name=self.model_name)
 
-        if self.tts_model in ("bytecompute/higgs-speech-v3", "higgs-speech-v3"):
+        if self.tts_model in ("Kokoro-82M-Server", "Kokoro-82M", "kokoro-server", "kokoro"):
+            self.tts = KokoroServerTTS(server_ip=config.tts_server_ip, port=31241)
+        elif self.tts_model in ("bytecompute/higgs-speech-v3", "higgs-speech-v3"):
             self.tts = ByteComputeHiggsSpeechV3()
         elif self.tts_model in ("Higgs-TTS-v3", "higgs-tts-v3"):
             self.tts = HiggsTTSv3(server_ip=config.tts_server_ip, port=31250)

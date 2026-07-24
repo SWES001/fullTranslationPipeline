@@ -28,21 +28,12 @@ class MossTTS:
         self.model_name = "moss-tts"
 
     async def synthesize(self, text: str, voice_id: str) -> TTSResult:
-        import base64
-        import os
-
-        audio_b64 = None
-        ref_path = "reference.wav"
-        if os.path.exists(ref_path):
-            with open(ref_path, "rb") as f:
-                audio_b64 = "data:audio/wav;base64," + base64.b64encode(f.read()).decode("utf-8")
-
         payload = {
             "text": text,
             "language": voice_id if voice_id else "en",
         }
-        if audio_b64:
-            payload["reference_audio"] = audio_b64
+        if CACHED_REF_AUDIO_B64:
+            payload["reference_audio"] = CACHED_REF_AUDIO_B64
         
         async with httpx.AsyncClient() as client:
             try:
@@ -128,6 +119,40 @@ class Qwen3TTS:
                 )
 
 
+def get_cached_reference_audio(ref_path: str = "reference.wav", max_seconds: float = 6.0) -> str:
+    """Pre-encodes and caches reference audio, trimming to max_seconds for fast synthesis."""
+    import os
+    import base64
+    import wave
+    import io
+
+    if not os.path.exists(ref_path):
+        return ""
+    try:
+        with wave.open(ref_path, "rb") as w:
+            rate = w.getframerate()
+            channels = w.getnchannels()
+            width = w.getsampwidth()
+            max_frames = int(max_seconds * rate)
+            audio_frames = w.readframes(max_frames)
+            
+            out_io = io.BytesIO()
+            with wave.open(out_io, "wb") as w_out:
+                w_out.setnchannels(channels)
+                w_out.setsampwidth(width)
+                w_out.setframerate(rate)
+                w_out.writeframes(audio_frames)
+                
+            return "data:audio/wav;base64," + base64.b64encode(out_io.getvalue()).decode("utf-8")
+    except Exception as e:
+        print(f"Error caching reference audio: {e}")
+        return ""
+
+
+# Cached reference audio Data URI
+CACHED_REF_AUDIO_B64 = get_cached_reference_audio("reference.wav", max_seconds=6.0)
+
+
 class HiggsTTSv3:
     """Connects to Higgs-TTS-v3 running on port 31250 on your company server."""
 
@@ -136,23 +161,14 @@ class HiggsTTSv3:
         self.model_name = "bosonai/higgs-tts-3-4b"
 
     async def synthesize(self, text: str, voice_id: str) -> TTSResult:
-        import base64
-        import os
-
-        audio_b64 = ""
-        ref_path = "reference.wav"
-        if os.path.exists(ref_path):
-            with open(ref_path, "rb") as f:
-                audio_b64 = "data:audio/wav;base64," + base64.b64encode(f.read()).decode("utf-8")
-
         payload = {
             "model": self.model_name,
             "input": text,
             "response_format": "wav"
         }
-        if audio_b64:
+        if CACHED_REF_AUDIO_B64:
             payload["task_type"] = "Base"
-            payload["ref_audio"] = audio_b64
+            payload["ref_audio"] = CACHED_REF_AUDIO_B64
             payload["x_vector_only_mode"] = True
 
         async with httpx.AsyncClient() as client:
@@ -232,6 +248,55 @@ class ByteComputeHiggsSpeechV3:
                     content_type="audio/wav",
                     voice_id=voice_id,
                     error=f"Higgs Speech V3 ByteCompute API error ({self.url}): {e}"
+                )
+
+
+class KokoroServerTTS:
+    """Connects to Kokoro-82M API running on port 31241 on your company server."""
+
+    def __init__(self, server_ip: str = "74.2.96.26", port: int = 31241):
+        self.url_tts = f"http://{server_ip}:{port}/tts"
+        self.url_v1 = f"http://{server_ip}:{port}/v1/audio/speech"
+        self.model_name = "kokoro-82m"
+
+    async def synthesize(self, text: str, voice_id: str) -> TTSResult:
+        # Valid Kokoro voice names on HuggingFace: af_heart, af_bella, am_adam, am_michael, bf_emma, etc.
+        valid_kokoro_voices = {
+            "af_heart", "af_bella", "af_nicole", "af_sky",
+            "am_adam", "am_michael", "bf_emma", "bf_isabella",
+            "bm_george", "bm_fable"
+        }
+        actual_voice = voice_id if voice_id in valid_kokoro_voices else "af_heart"
+
+        payload = {
+            "text": text,
+            "input": text,
+            "voice": actual_voice,
+            "speed": 1.0,
+            "response_format": "wav"
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(self.url_tts, json=payload, timeout=10.0)
+                if response.status_code == 404:
+                    response = await client.post(self.url_v1, json=payload, timeout=10.0)
+                response.raise_for_status()
+                print(f"Kokoro-82M Server Synthesized with voice '{actual_voice}': {len(response.content)} bytes")
+                return TTSResult(
+                    audio_bytes=response.content,
+                    content_type="audio/wav",
+                    voice_id=voice_id
+                )
+            except Exception as e:
+                import traceback
+                print(f"Kokoro-82M Server Error ({self.url_tts}): {e}")
+                traceback.print_exc()
+                return TTSResult(
+                    audio_bytes=b"",
+                    content_type="audio/wav",
+                    voice_id=voice_id,
+                    error=f"Kokoro-82M Server connection error ({self.url_tts}): {e}"
                 )
 
 
