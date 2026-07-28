@@ -23,6 +23,7 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
     WebRTC data channel. Server-side TTS audio can be added later by adding
     a custom MediaStreamTrack back to the peer connection.
     """
+    print(f"[WebRTC] Creating answer for session: asr={request.asr_model}, tts={request.tts_model}, translator={request.model}")
 
     peer_connection = RTCPeerConnection()
     PEER_CONNECTIONS.add(peer_connection)
@@ -45,6 +46,7 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
     def on_datachannel(channel: RTCDataChannel) -> None:
         nonlocal data_channel
         data_channel = channel
+        print(f"[WebRTC] Data channel opened: {channel.label}")
 
         @channel.on("message")
         def on_message(message: str) -> None:
@@ -52,16 +54,19 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
             # - update glossary
             # - change target language
             # - interrupt TTS playback
-            print(f"client message: {message}")
+            print(f"[WebRTC] Client data channel message: {message}")
 
     @peer_connection.on("track")
     def on_track(track: MediaStreamTrack) -> None:
+        print(f"[WebRTC] Received track: kind={track.kind}")
         if track.kind == "audio":
             asyncio.create_task(consume_audio_track(track, session, emit))
 
     @peer_connection.on("connectionstatechange")
     async def on_connectionstatechange() -> None:
-        if peer_connection.connectionState in {"failed", "closed", "disconnected"}:
+        state = peer_connection.connectionState
+        print(f"[WebRTC] Peer connection state changed to: {state}")
+        if state in {"failed", "closed", "disconnected"}:
             await peer_connection.close()
             PEER_CONNECTIONS.discard(peer_connection)
 
@@ -70,6 +75,7 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
     answer = await peer_connection.createAnswer()
     await peer_connection.setLocalDescription(answer)
 
+    print("[WebRTC] Signaling handshake complete (remote SDP set, answer SDP generated)")
     return {
         "sdp": peer_connection.localDescription.sdp,
         "type": peer_connection.localDescription.type,
@@ -82,6 +88,7 @@ async def consume_audio_track(
     emit: Callable[[dict], Awaitable[None]],
 ) -> None:
     """Collect WebRTC audio frames, run VAD, and feed sentences to ASR."""
+    print("[WebRTC] Starting consume_audio_track background worker loop")
 
     frames = []
     detector = WebRTCEndpointDetector()
@@ -93,6 +100,7 @@ async def consume_audio_track(
         try:
             frame = await track.recv()
         except Exception as exc:
+            print(f"[WebRTC] Audio track stream ended / closed: {exc}")
             await emit({"type": "track_closed", "detail": str(exc)})
             return
 
@@ -113,6 +121,7 @@ async def consume_audio_track(
             # If the user stopped speaking (endpoint triggered), send to ASR!
             if endpoint_triggered:
                 if frames:
+                    print(f"[WebRTC] VAD endpoint triggered. Transcribing {len(frames)} audio frames...")
                     event = await session.process_audio_window(frames)
                     if event:
                         await emit(event)

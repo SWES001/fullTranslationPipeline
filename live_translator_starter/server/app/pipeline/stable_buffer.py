@@ -5,6 +5,9 @@ from server.app.pipeline.asr import ASRResult
 
 
 HALLUCINATED_PHRASES = {
+    "gracias",
+    "gracias.",
+    "gracias!",
     "gracias por ver",
     "gracias por ver!",
     "gracias por ver.",

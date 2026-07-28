@@ -58,15 +58,25 @@ async function startSession() {
       if (state === 'failed' || state === 'disconnected') setStatus('failed', state);
     };
 
+    peerConnection.oniceconnectionstatechange = () => {
+      logEvent(`ICE connection state: ${peerConnection.iceConnectionState}`);
+    };
+
+    peerConnection.onicegatheringstatechange = () => {
+      logEvent(`ICE gathering state: ${peerConnection.iceGatheringState}`);
+    };
+
     for (const track of localStream.getAudioTracks()) {
       peerConnection.addTrack(track, localStream);
     }
 
+    logEvent('Creating WebRTC offer and gathering local ICE candidates...');
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
     await waitForIceGatheringComplete(peerConnection);
+    logEvent(`Local ICE gathering complete. Sending offer to remote server...`);
 
-    const response = await fetch('/offer', {
+    const response = await fetch('http://74.2.96.26:8000/offer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -82,14 +92,20 @@ async function startSession() {
     });
 
     if (!response.ok) {
-      throw new Error(`Offer failed: ${response.status} ${response.statusText}`);
+      let errBody = "";
+      try {
+        errBody = await response.text();
+      } catch (e) {}
+      throw new Error(`Offer failed with status ${response.status} (${response.statusText}). Server Response: ${errBody}`);
     }
 
     const answer = await response.json();
+    logEvent('Received SDP answer from remote server. Setting remote description...');
     await peerConnection.setRemoteDescription(answer);
     els.stopButton.disabled = false;
-    logEvent('Session started. Speak into the microphone.');
+    logEvent('Session negotiation successful. WebRTC audio channel is open. Speak into the microphone.');
   } catch (error) {
+    console.error("WebRTC Session Startup Error:", error);
     logEvent(`Error: ${error.message}`);
     setStatus('failed', 'Failed');
     await stopSession();
@@ -159,6 +175,11 @@ function handleServerEvent(rawData) {
   if (message.type === 'asr_partial') {
     const asrStr = message.asr_ms !== undefined ? ` [ASR: ${message.asr_ms}ms]` : '';
     logEvent(`ASR partial: ${message.source.text}${asrStr}`);
+    return;
+  }
+
+  if (message.type === 'track_closed') {
+    logEvent(`[Backend Track Closed] Audio track closed on server: ${message.detail}`);
     return;
   }
 

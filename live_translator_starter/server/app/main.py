@@ -1,8 +1,5 @@
-from pathlib import Path
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from server.app.config import config
 from server.app.schemas import OfferRequest, OfferResponse
@@ -38,8 +35,6 @@ async def on_shutdown() -> None:
     await shutdown_peer_connections()
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-CLIENT_DIR = BASE_DIR / "client"
-
-# Keep this mount last so API routes above still work.
-app.mount("/", StaticFiles(directory=CLIENT_DIR, html=True), name="client")
+@app.get("/")
+async def root() -> dict[str, str]:
+    return {"status": "online", "message": "Live Translator API Backend"}
