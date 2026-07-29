@@ -3,7 +3,7 @@ from typing import Iterable, Optional
 from uuid import uuid4
 
 from server.app.config import config
-from server.app.pipeline.asr import FakeASR, QwenASR, FastWhisperASR, CohereASR, ByteComputeGemmaASR, ByteComputeWhisperASR
+from server.app.pipeline.asr import FakeASR, QwenASR, FastWhisperASR, CohereASR, ByteComputeGemmaASR, ByteComputeWhisperASR, ByteComputeWhisperTurboASR
 from server.app.pipeline.stable_buffer import StableTextBuffer
 from server.app.pipeline.translator import FakeTranslator, HyMT2Translator, ByteComputeTranslator
 from server.app.pipeline.voice_selector import VoiceSelector
@@ -23,6 +23,8 @@ class TranslationSession:
     def __post_init__(self) -> None:
         if self.asr_model in ("bytecompute/gemma-4-E4B-it", "google/gemma-4-E4B-it", "gemma-4-E4B-it", "gemma-4-e4b"):
             self.asr = ByteComputeGemmaASR()
+        elif self.asr_model in ("bytecompute/whisper-large-turbo", "whisper-large-turbo", "whisper-turbo", "bytecompute/whisper-turbo", "openai/whisper-large-v3-turbo"):
+            self.asr = ByteComputeWhisperTurboASR()
         elif self.asr_model in ("openai/whisper-large-v3", "whisper-large-v3", "bytecompute/whisper-large-v3"):
             self.asr = ByteComputeWhisperASR()
         # elif self.asr_model == "Qwen/Qwen3-ASR-1.7B":

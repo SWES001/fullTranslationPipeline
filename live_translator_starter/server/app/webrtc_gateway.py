@@ -1,5 +1,6 @@
 import asyncio
 import json
+from uuid import uuid4
 from typing import Awaitable, Callable, Optional
 
 from aiortc import RTCPeerConnection, RTCSessionDescription
@@ -16,6 +17,67 @@ from server.app.pipeline.vad import WebRTCEndpointDetector
 PEER_CONNECTIONS: set[RTCPeerConnection] = set()
 
 
+class RoomManager:
+    """Manages multi-device rooms and cross-routes audio translation events."""
+
+    def __init__(self):
+        # room_id -> dict of client_id -> {"emit": emit_func, "session": session}
+        self.rooms: dict[str, dict[str, dict]] = {}
+
+    def register_client(
+        self,
+        room_id: str,
+        client_id: str,
+        session: TranslationSession,
+        emit_func: Callable[[dict], Awaitable[None]],
+    ) -> None:
+        if room_id not in self.rooms:
+            self.rooms[room_id] = {}
+        self.rooms[room_id][client_id] = {
+            "session": session,
+            "emit": emit_func,
+        }
+        print(f"[RoomManager] Client '{client_id}' joined room '{room_id}'. Active clients in room: {list(self.rooms[room_id].keys())}")
+
+    def unregister_client(self, room_id: str, client_id: str) -> None:
+        if room_id in self.rooms and client_id in self.rooms[room_id]:
+            del self.rooms[room_id][client_id]
+            print(f"[RoomManager] Client '{client_id}' left room '{room_id}'. Remaining clients: {list(self.rooms[room_id].keys())}")
+            if not self.rooms[room_id]:
+                del self.rooms[room_id]
+
+    async def route_event(self, room_id: str, sender_client_id: str, event: dict) -> None:
+        """Cross-route translation event: send translation + TTS audio to peers, and self-caption to sender."""
+        room_clients = self.rooms.get(room_id, {})
+        other_clients = [c_id for c_id in room_clients if c_id != sender_client_id]
+
+        event["sender_client_id"] = sender_client_id
+
+        if not other_clients:
+            print(f"[RoomManager] Client '{sender_client_id}' spoke in room '{room_id}', but no other devices are in the room yet.")
+
+        # 1. Send full translation + TTS audio payload to ALL OTHER peers in the room
+        for peer_id in other_clients:
+            peer_emit = room_clients[peer_id]["emit"]
+            print(f"[RoomManager] Routing translated audio from '{sender_client_id}' to peer '{peer_id}' in room '{room_id}'")
+            await peer_emit(event)
+
+        # 2. Send self-caption feedback to the speaker (text only, NO TTS audio)
+        sender_data = room_clients.get(sender_client_id)
+        if sender_data:
+            self_caption_event = {
+                "type": "self_caption",
+                "session_id": event.get("session_id"),
+                "sender_client_id": sender_client_id,
+                "source": event.get("source"),
+                "translation": event.get("translation"),
+            }
+            await sender_data["emit"](self_caption_event)
+
+
+ROOM_MANAGER = RoomManager()
+
+
 async def create_answer(request: OfferRequest) -> dict[str, str]:
     """Create a WebRTC answer for a browser offer.
 
@@ -23,7 +85,11 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
     WebRTC data channel. Server-side TTS audio can be added later by adding
     a custom MediaStreamTrack back to the peer connection.
     """
-    print(f"[WebRTC] Creating answer for session: asr={request.asr_model}, tts={request.tts_model}, translator={request.model}")
+    client_id = request.client_id or f"client-{str(uuid4())[:6]}"
+    is_room_mode = request.session_mode == "room" and bool(request.room_id)
+    room_id = request.room_id.strip() if is_room_mode else ""
+
+    print(f"[WebRTC] Creating answer (mode={request.session_mode}, room='{room_id}', client='{client_id}'): asr={request.asr_model}, tts={request.tts_model}, translator={request.model}")
 
     peer_connection = RTCPeerConnection()
     PEER_CONNECTIONS.add(peer_connection)
@@ -42,31 +108,41 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
         if data_channel and data_channel.readyState == "open":
             data_channel.send(json.dumps(message, ensure_ascii=False))
 
+    if is_room_mode:
+        ROOM_MANAGER.register_client(room_id, client_id, session, emit)
+
     @peer_connection.on("datachannel")
     def on_datachannel(channel: RTCDataChannel) -> None:
         nonlocal data_channel
         data_channel = channel
-        print(f"[WebRTC] Data channel opened: {channel.label}")
+        print(f"[WebRTC] Data channel opened: {channel.label} (client='{client_id}')")
 
         @channel.on("message")
         def on_message(message: str) -> None:
-            # Add client-side commands here later, for example:
-            # - update glossary
-            # - change target language
-            # - interrupt TTS playback
-            print(f"[WebRTC] Client data channel message: {message}")
+            print(f"[WebRTC] Client '{client_id}' data channel message: {message}")
 
     @peer_connection.on("track")
     def on_track(track: MediaStreamTrack) -> None:
-        print(f"[WebRTC] Received track: kind={track.kind}")
+        print(f"[WebRTC] Received track: kind={track.kind} (client='{client_id}')")
         if track.kind == "audio":
-            asyncio.create_task(consume_audio_track(track, session, emit))
+            asyncio.create_task(
+                consume_audio_track(
+                    track=track,
+                    session=session,
+                    emit=emit,
+                    is_room_mode=is_room_mode,
+                    room_id=room_id,
+                    client_id=client_id,
+                )
+            )
 
     @peer_connection.on("connectionstatechange")
     async def on_connectionstatechange() -> None:
         state = peer_connection.connectionState
-        print(f"[WebRTC] Peer connection state changed to: {state}")
+        print(f"[WebRTC] Peer connection state changed to: {state} (client='{client_id}')")
         if state in {"failed", "closed", "disconnected"}:
+            if is_room_mode:
+                ROOM_MANAGER.unregister_client(room_id, client_id)
             await peer_connection.close()
             PEER_CONNECTIONS.discard(peer_connection)
 
@@ -75,7 +151,7 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
     answer = await peer_connection.createAnswer()
     await peer_connection.setLocalDescription(answer)
 
-    print("[WebRTC] Signaling handshake complete (remote SDP set, answer SDP generated)")
+    print(f"[WebRTC] Signaling handshake complete for client '{client_id}'")
     return {
         "sdp": peer_connection.localDescription.sdp,
         "type": peer_connection.localDescription.type,
@@ -86,9 +162,12 @@ async def consume_audio_track(
     track: MediaStreamTrack,
     session: TranslationSession,
     emit: Callable[[dict], Awaitable[None]],
+    is_room_mode: bool = False,
+    room_id: str = "",
+    client_id: str = "",
 ) -> None:
     """Collect WebRTC audio frames, run VAD, and feed sentences to ASR."""
-    print("[WebRTC] Starting consume_audio_track background worker loop")
+    print(f"[WebRTC] Starting consume_audio_track background worker loop for client '{client_id}'")
 
     frames = []
     detector = WebRTCEndpointDetector()
@@ -100,7 +179,9 @@ async def consume_audio_track(
         try:
             frame = await track.recv()
         except Exception as exc:
-            print(f"[WebRTC] Audio track stream ended / closed: {exc}")
+            print(f"[WebRTC] Audio track stream ended for client '{client_id}': {exc}")
+            if is_room_mode:
+                ROOM_MANAGER.unregister_client(room_id, client_id)
             await emit({"type": "track_closed", "detail": str(exc)})
             return
 
@@ -121,10 +202,13 @@ async def consume_audio_track(
             # If the user stopped speaking (endpoint triggered), send to ASR!
             if endpoint_triggered:
                 if frames:
-                    print(f"[WebRTC] VAD endpoint triggered. Transcribing {len(frames)} audio frames...")
+                    print(f"[WebRTC] VAD endpoint triggered for '{client_id}'. Transcribing {len(frames)} audio frames...")
                     event = await session.process_audio_window(frames)
                     if event:
-                        await emit(event)
+                        if is_room_mode and room_id:
+                            await ROOM_MANAGER.route_event(room_id, client_id, event)
+                        else:
+                            await emit(event)
                     frames = []
 
 
@@ -133,3 +217,4 @@ async def shutdown_peer_connections() -> None:
     if coroutines:
         await asyncio.gather(*coroutines)
     PEER_CONNECTIONS.clear()
+

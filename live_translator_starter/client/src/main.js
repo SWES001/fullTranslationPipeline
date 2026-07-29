@@ -8,6 +8,9 @@ const els = {
   clearLogButton: document.querySelector('#clearLogButton'),
   connectionDot: document.querySelector('#connectionDot'),
   connectionStatus: document.querySelector('#connectionStatus'),
+  sessionMode: document.querySelector('#sessionMode'),
+  roomGroup: document.querySelector('#roomGroup'),
+  roomId: document.querySelector('#roomId'),
   sourceLanguage: document.querySelector('#sourceLanguage'),
   targetLanguage: document.querySelector('#targetLanguage'),
   modelName: document.querySelector('#modelName'),
@@ -19,6 +22,19 @@ const els = {
   translationTranscript: document.querySelector('#translationTranscript'),
   eventLog: document.querySelector('#eventLog'),
 };
+
+els.sessionMode.addEventListener('change', () => {
+  els.roomGroup.style.display = els.sessionMode.value === 'room' ? 'block' : 'none';
+});
+
+function getClientId() {
+  let clientId = sessionStorage.getItem('live_translator_client_id');
+  if (!clientId) {
+    clientId = 'device-' + Math.random().toString(36).substring(2, 8);
+    sessionStorage.setItem('live_translator_client_id', clientId);
+  }
+  return clientId;
+}
 
 els.startButton.addEventListener('click', () => {
   unlockAudio();
@@ -76,6 +92,16 @@ async function startSession() {
     await waitForIceGatheringComplete(peerConnection);
     logEvent(`Local ICE gathering complete. Sending offer to remote server...`);
 
+    const clientId = getClientId();
+    const isRoom = els.sessionMode.value === 'room';
+    const roomName = els.roomId.value.trim() || 'Testing Room';
+
+    if (isRoom) {
+      logEvent(`Joining Room: '${roomName}' as Client ID '${clientId}'`);
+    } else {
+      logEvent(`Starting One-way (Single Device) session`);
+    }
+
     const response = await fetch('http://74.2.96.26:8000/offer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -88,6 +114,9 @@ async function startSession() {
         asr_model: els.asrModel.value,
         tts_model: els.ttsModel.value,
         voice_matching: els.voiceMatching.checked,
+        session_mode: els.sessionMode.value,
+        room_id: roomName,
+        client_id: clientId,
       }),
     });
 
@@ -145,9 +174,21 @@ function handleServerEvent(rawData) {
     return;
   }
 
+  if (message.type === 'self_caption') {
+    if (message.source && message.source.text) {
+      appendUtterance(els.sourceTranscript, `[You]: ${message.source.text}`);
+    }
+    if (message.translation && message.translation.text) {
+      appendUtterance(els.translationTranscript, `[You -> ${message.translation.language}]: ${message.translation.text}`);
+    }
+    logEvent(`[Self caption]: ${message.source?.text} -> ${message.translation?.text}`);
+    return;
+  }
+
   if (message.type === 'translation') {
-    appendUtterance(els.sourceTranscript, message.source.text);
-    appendUtterance(els.translationTranscript, message.translation.text);
+    const senderTag = message.sender_client_id ? `[${message.sender_client_id}] ` : '';
+    appendUtterance(els.sourceTranscript, `${senderTag}${message.source.text}`);
+    appendUtterance(els.translationTranscript, `${senderTag}${message.translation.text}`);
 
     const asrStr = message.asr_ms !== undefined ? `ASR: ${message.asr_ms}ms` : '';
     const transStr = message.trans_ms !== undefined ? `Trans: ${message.trans_ms}ms` : '';
@@ -158,7 +199,7 @@ function handleServerEvent(rawData) {
     const breakdown = [asrStr, transStr, ttftStr, ttsStr, ttfaStr].filter(Boolean).join(' | ');
     const breakdownMsg = breakdown ? ` [${breakdown}]` : '';
 
-    logEvent(`Translated with ${message.translation.model}: ${message.translation.text}${breakdownMsg}`);
+    logEvent(`Translated from ${senderTag || 'peer'}: ${message.translation.text}${breakdownMsg}`);
 
     if (els.browserTts.checked) {
       speak(message.translation.text, els.targetLanguage.value);

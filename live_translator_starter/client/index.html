@@ -22,6 +22,19 @@
 
       <section class="panel controls">
         <label>
+          Session Mode
+          <select id="sessionMode">
+            <option value="one_way" selected>One-way (Single Device)</option>
+            <option value="room">Two-way Room (Multi-Device)</option>
+          </select>
+        </label>
+
+        <label id="roomGroup" style="display: none;">
+          Room Name
+          <input id="roomId" type="text" value="Testing Room" placeholder="e.g. Testing Room" />
+        </label>
+
+        <label>
           Source language
           <select id="sourceLanguage">
             <option value="ja">Japanese</option>
@@ -45,7 +58,8 @@
           ASR model
           <select id="asrModel">
             <option value="fake">Fake ASR (Simulator / Offline)</option>
-            <option value="openai/whisper-large-v3" selected>Whisper Large V3 (ByteCompute API)</option>
+            <option value="openai/whisper-large-v3-turbo" selected>Whisper Large Turbo (ByteCompute API)</option>
+            <option value="openai/whisper-large-v3">Whisper Large V3 (ByteCompute API)</option>
             <option value="bytecompute/gemma-4-E4B-it">Gemma 4 E4B (ByteCompute API)</option>
             <option value="Qwen/Qwen3-ASR-1.7B">Qwen3 ASR</option>
             <option value="CohereLabs/cohere-transcribe-03-2026">Cohere ASR</option>
@@ -75,7 +89,7 @@
         </label>
 
         <label class="check-row">
-          <input id="browserTts" type="checkbox" checked />
+          <input id="browserTts" type="checkbox" />
           Use browser TTS placeholder
         </label>
 

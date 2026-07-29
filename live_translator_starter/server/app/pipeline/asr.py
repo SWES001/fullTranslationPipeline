@@ -190,6 +190,55 @@ class FastWhisperASR:
 ByteComputeWhisperASR = FastWhisperASR
 
 
+class ByteComputeWhisperTurboASR:
+    """Connects to ByteCompute's serverless Whisper Large Turbo ASR endpoint."""
+
+    def __init__(self, api_key: str = "bytecompute_RvJjDWOF_LhtSI4TXqabrSCqQHcMfxNF"):
+        self.url = "https://us-01.bytecompute.ai/v1/audio/transcriptions"
+        self.model_name = "openai/whisper-large-v3-turbo"
+        self.api_key = api_key
+
+    async def transcribe_pcm(self, frames: Iterable[object], source_language: str) -> ASRResult:
+        wav_bytes = frames_to_wav_bytes(list(frames))
+        if not wav_bytes:
+            return ASRResult(text="", is_final=True, confidence=0.0, language=source_language)
+            
+        headers = {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        async with httpx.AsyncClient() as client:
+            files = {
+                "file": ("audio.wav", wav_bytes, "audio/wav")
+            }
+            data = {
+                "model": self.model_name,
+                "language": source_language,
+            }
+            try:
+                response = await client.post(self.url, headers=headers, files=files, data=data, timeout=60.0)
+                response.raise_for_status()
+                result = response.json()
+                text = result.get("text", "").strip()
+                print(f"Whisper Turbo ASR Transcribed: '{text}'")
+                return ASRResult(
+                    text=text,
+                    is_final=True,
+                    confidence=0.99,
+                    language=source_language,
+                )
+            except Exception as e:
+                import traceback
+                print(f"Whisper Turbo ASR Connection Error: {e}")
+                traceback.print_exc()
+                return ASRResult(
+                    text=f"[Whisper Turbo ASR Error: {e}]",
+                    is_final=True,
+                    confidence=0.0,
+                    language=source_language,
+                )
+
+
 class CohereASR:
     """Connects to your company's Cohere vLLM ASR server."""
 
