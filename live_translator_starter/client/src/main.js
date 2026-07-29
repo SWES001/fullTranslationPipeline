@@ -8,6 +8,7 @@ const els = {
   clearLogButton: document.querySelector('#clearLogButton'),
   connectionDot: document.querySelector('#connectionDot'),
   connectionStatus: document.querySelector('#connectionStatus'),
+  username: document.querySelector('#username'),
   sessionMode: document.querySelector('#sessionMode'),
   roomGroup: document.querySelector('#roomGroup'),
   roomId: document.querySelector('#roomId'),
@@ -24,6 +25,14 @@ const els = {
   eventLog: document.querySelector('#eventLog'),
 };
 
+const savedUsername = localStorage.getItem('live_translator_username') || `User-${Math.floor(100 + Math.random() * 900)}`;
+els.username.value = savedUsername;
+els.username.addEventListener('change', () => {
+  if (els.username.value.trim()) {
+    localStorage.setItem('live_translator_username', els.username.value.trim());
+  }
+});
+
 function updateModeVisibility() {
   const isRoom = els.sessionMode.value === 'room';
   els.roomGroup.style.display = isRoom ? 'block' : 'none';
@@ -34,10 +43,15 @@ els.sessionMode.addEventListener('change', updateModeVisibility);
 updateModeVisibility();
 
 function getClientId() {
-  let clientId = sessionStorage.getItem('live_translator_client_id');
+  const customName = els.username.value.trim();
+  if (customName) {
+    localStorage.setItem('live_translator_username', customName);
+    return customName;
+  }
+  let clientId = localStorage.getItem('live_translator_username');
   if (!clientId) {
-    clientId = 'device-' + Math.random().toString(36).substring(2, 8);
-    sessionStorage.setItem('live_translator_client_id', clientId);
+    clientId = 'User-' + Math.floor(100 + Math.random() * 900);
+    localStorage.setItem('live_translator_username', clientId);
   }
   return clientId;
 }

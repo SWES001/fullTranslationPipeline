@@ -9,14 +9,20 @@ class VoiceChoice:
 
 
 class VoiceSelector:
-    """Selects a target TTS voice.
-
-    The starter does not infer gender. It returns a stable neutral voice.
-    Later, add acoustic pitch profiling and a user preference such as
-    masculine/feminine/neutral.
-    """
+    """Selects a target TTS voice based on target language."""
 
     def select(self, target_language: str, voice_matching: bool = False) -> VoiceChoice:
-        if target_language == "ja":
-            return VoiceChoice("ja-neutral-medium-01", "neutral", "medium")
-        return VoiceChoice("en-neutral-medium-01", "neutral", "medium")
+        lang = (target_language or "en").lower().split("-")[0]
+        if lang == "es":
+            return VoiceChoice("ef_dora", "female", "medium")
+        elif lang == "ja":
+            return VoiceChoice("jf_alpha", "female", "medium")
+        elif lang == "zh":
+            return VoiceChoice("zf_xiaobei", "female", "medium")
+        elif lang == "fr":
+            return VoiceChoice("ff_siwis", "female", "medium")
+        elif lang == "it":
+            return VoiceChoice("if_sara", "female", "medium")
+        else:
+            return VoiceChoice("af_heart", "female", "medium")
+

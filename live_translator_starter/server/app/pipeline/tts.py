@@ -260,13 +260,27 @@ class KokoroServerTTS:
         self.model_name = "kokoro-82m"
 
     async def synthesize(self, text: str, voice_id: str) -> TTSResult:
-        # Valid Kokoro voice names on HuggingFace: af_heart, af_bella, am_adam, am_michael, bf_emma, etc.
         valid_kokoro_voices = {
             "af_heart", "af_bella", "af_nicole", "af_sky",
             "am_adam", "am_michael", "bf_emma", "bf_isabella",
-            "bm_george", "bm_fable"
+            "bm_george", "bm_fable", "ef_dora", "em_alex",
+            "jf_alpha", "jm_kento", "zf_xiaobei", "zm_yunjian",
+            "ff_siwis", "if_sara"
         }
-        actual_voice = voice_id if voice_id in valid_kokoro_voices else "af_heart"
+        
+        actual_voice = "af_heart"
+        if voice_id in valid_kokoro_voices:
+            actual_voice = voice_id
+        elif voice_id.startswith("es"):
+            actual_voice = "ef_dora"
+        elif voice_id.startswith("ja"):
+            actual_voice = "jf_alpha"
+        elif voice_id.startswith("zh"):
+            actual_voice = "zf_xiaobei"
+        elif voice_id.startswith("fr"):
+            actual_voice = "ff_siwis"
+        elif voice_id.startswith("it"):
+            actual_voice = "if_sara"
 
         payload = {
             "text": text,

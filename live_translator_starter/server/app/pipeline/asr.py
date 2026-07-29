@@ -138,6 +138,35 @@ class QwenASR:
                 )
 
 
+WHISPER_HALLUCINATION_PHRASES = {
+    "gracias", "gracias.", "gracias!", "¡gracias!", "gracias por ver", "gracias por ver.",
+    "suscríbete", "suscríbete.", "suscríbete!", "¡suscríbete!", "suscribete", "suscribete.",
+    "subtítulos por...", "subtítulos por amara.org", "subtítulos realizados por la comunidad de amara.org",
+    "subtítulos por la comunidad de amara.org", "gracias por ver este video.", "gracias por ver este vídeo.",
+    "thank you for watching", "thank you for watching.", "thanks for watching", "thanks for watching.",
+    "subscribe", "subscribe.", "subscribe to my channel", "subtitles by", "subtitles by amara.org",
+    "ご視聴ありがとうございました", "ご視聴ありがとうございました。", "チャンネル登録", "チャンネル登録お願いします",
+    "谢谢观看", "谢谢观看。", "订阅", "点赞", "关注"
+}
+
+
+def filter_whisper_hallucinations(text: str) -> str:
+    cleaned = text.strip()
+    if not cleaned:
+        return ""
+    normalized = cleaned.lower().rstrip(".!?,")
+    if normalized in {p.lower().rstrip(".!?,") for p in WHISPER_HALLUCINATION_PHRASES}:
+        print(f"[ASR Filter] Suppressed Whisper YouTube hallucination: '{cleaned}'")
+        return ""
+    for phrase in WHISPER_HALLUCINATION_PHRASES:
+        p_norm = phrase.lower().rstrip(".!?,")
+        if len(p_norm) > 5 and p_norm in normalized:
+            if len(normalized) < len(p_norm) + 15:
+                print(f"[ASR Filter] Suppressed hallucination phrase inside text: '{cleaned}'")
+                return ""
+    return cleaned
+
+
 class FastWhisperASR:
     """Connects to ByteCompute's serverless Whisper Large V3 ASR endpoint."""
 
@@ -162,17 +191,19 @@ class FastWhisperASR:
             data = {
                 "model": self.model_name,
                 "language": source_language,
+                "prompt": "Real-time speech conversation. Do not include video credits, channel subscriptions, or subtitle text.",
             }
             try:
                 response = await client.post(self.url, headers=headers, files=files, data=data, timeout=60.0)
                 response.raise_for_status()
                 result = response.json()
-                text = result.get("text", "").strip()
-                print(f"Whisper Large V3 ASR Transcribed: '{text}'")
+                raw_text = result.get("text", "").strip()
+                text = filter_whisper_hallucinations(raw_text)
+                print(f"Whisper Large V3 ASR Transcribed: '{text}' (raw: '{raw_text}')")
                 return ASRResult(
                     text=text,
                     is_final=True,
-                    confidence=0.99,
+                    confidence=0.99 if text else 0.0,
                     language=source_language,
                 )
             except Exception as e:
@@ -214,17 +245,19 @@ class ByteComputeWhisperTurboASR:
             data = {
                 "model": self.model_name,
                 "language": source_language,
+                "prompt": "Real-time speech conversation. Do not include video credits, channel subscriptions, or subtitle text.",
             }
             try:
                 response = await client.post(self.url, headers=headers, files=files, data=data, timeout=60.0)
                 response.raise_for_status()
                 result = response.json()
-                text = result.get("text", "").strip()
-                print(f"Whisper Turbo ASR Transcribed: '{text}'")
+                raw_text = result.get("text", "").strip()
+                text = filter_whisper_hallucinations(raw_text)
+                print(f"Whisper Turbo ASR Transcribed: '{text}' (raw: '{raw_text}')")
                 return ASRResult(
                     text=text,
                     is_final=True,
-                    confidence=0.99,
+                    confidence=0.99 if text else 0.0,
                     language=source_language,
                 )
             except Exception as e:
