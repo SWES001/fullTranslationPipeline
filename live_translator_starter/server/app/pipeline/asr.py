@@ -138,15 +138,19 @@ class QwenASR:
                 )
 
 
-WHISPER_HALLUCINATION_PHRASES = {
-    "gracias", "gracias.", "gracias!", "¡gracias!", "gracias por ver", "gracias por ver.",
-    "suscríbete", "suscríbete.", "suscríbete!", "¡suscríbete!", "suscribete", "suscribete.",
-    "subtítulos por...", "subtítulos por amara.org", "subtítulos realizados por la comunidad de amara.org",
-    "subtítulos por la comunidad de amara.org", "gracias por ver este video.", "gracias por ver este vídeo.",
-    "thank you for watching", "thank you for watching.", "thanks for watching", "thanks for watching.",
-    "subscribe", "subscribe.", "subscribe to my channel", "subtitles by", "subtitles by amara.org",
-    "ご視聴ありがとうございました", "ご視聴ありがとうございました。", "チャンネル登録", "チャンネル登録お願いします",
-    "谢谢观看", "谢谢观看。", "订阅", "点赞", "关注"
+WHISPER_HALLUCINATION_KEYWORDS = [
+    "ming pao", "mingpao", "ming pao canada", "ming pao toronto", "明報", "明报",
+    "suscríbete", "suscribete", "subtítulos", "subtitulos", "amara.org",
+    "gracias por ver", "thank you for watching", "thanks for watching",
+    "subscribe to my channel", "subtitles by", "ご視聴ありがとう", "チャンネル登録",
+    "谢谢观看", "点赞", "关注"
+]
+
+WHISPER_HALLUCINATION_EXACT = {
+    "gracias", "gracias.", "gracias!", "¡gracias!", "thanks.", "thanks!", "thank you.",
+    "subtitles", "subtitles.", "bye.", "bye!", "bye bye.", "bye-bye.",
+    "shh", "shh.", "hiss", "cough", "gasp", "sigh", "laughter", "chuckle",
+    "um", "uh", "ah", "oh", "eh"
 }
 
 
@@ -154,16 +158,25 @@ def filter_whisper_hallucinations(text: str) -> str:
     cleaned = text.strip()
     if not cleaned:
         return ""
-    normalized = cleaned.lower().rstrip(".!?,")
-    if normalized in {p.lower().rstrip(".!?,") for p in WHISPER_HALLUCINATION_PHRASES}:
-        print(f"[ASR Filter] Suppressed Whisper YouTube hallucination: '{cleaned}'")
+        
+    normalized = cleaned.lower()
+    
+    # 1. Exact match check
+    if normalized.rstrip(".!?,") in {p.rstrip(".!?,") for p in WHISPER_HALLUCINATION_EXACT}:
+        print(f"[ASR Filter] Suppressed exact Whisper hallucination: '{cleaned}'")
         return ""
-    for phrase in WHISPER_HALLUCINATION_PHRASES:
-        p_norm = phrase.lower().rstrip(".!?,")
-        if len(p_norm) > 5 and p_norm in normalized:
-            if len(normalized) < len(p_norm) + 15:
-                print(f"[ASR Filter] Suppressed hallucination phrase inside text: '{cleaned}'")
-                return ""
+        
+    # 2. Keyword substring check (e.g. MING PAO CANADA // MING PAO TORONTO)
+    for kw in WHISPER_HALLUCINATION_KEYWORDS:
+        if kw in normalized:
+            print(f"[ASR Filter] Suppressed Whisper hallucination containing '{kw}': '{cleaned}'")
+            return ""
+            
+    # 3. Check for URLs or repetitive junk
+    if "http://" in normalized or "https://" in normalized or "www." in normalized or ".com" in normalized or ".ca" in normalized:
+        print(f"[ASR Filter] Suppressed URL/credit hallucination: '{cleaned}'")
+        return ""
+        
     return cleaned
 
 
