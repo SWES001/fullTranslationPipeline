@@ -56,14 +56,59 @@ class RoomManager:
         if not other_clients:
             print(f"[RoomManager] Client '{sender_client_id}' spoke in room '{room_id}', but no other devices are in the room yet.")
 
+        sender_data = room_clients.get(sender_client_id)
+        sender_session = sender_data["session"] if sender_data else None
+
         # 1. Send full translation + TTS audio payload to ALL OTHER peers in the room
         for peer_id in other_clients:
-            peer_emit = room_clients[peer_id]["emit"]
-            print(f"[RoomManager] Routing translated audio from '{sender_client_id}' to peer '{peer_id}' in room '{room_id}'")
-            await peer_emit(event)
+            peer_data = room_clients[peer_id]
+            peer_session = peer_data["session"]
+            peer_emit = peer_data["emit"]
+
+            target_lang = peer_session.source_language  # The language this peer speaks & wants to hear
+
+            # If the event translation language differs from the peer's language, translate dynamically for them
+            if event.get("type") == "translation" and event.get("translation", {}).get("language") != target_lang and sender_session:
+                committed_text = event["source"]["text"]
+                translated_text = await sender_session.translator.translate(
+                    committed_text,
+                    source_language=sender_session.source_language,
+                    target_language=target_lang,
+                )
+                voice = sender_session.voice_selector.select(target_lang, sender_session.voice_matching)
+                tts_result = await sender_session.tts.synthesize(translated_text, voice.voice_id)
+
+                import base64
+                audio_base64 = base64.b64encode(tts_result.audio_bytes).decode("utf-8") if tts_result.audio_bytes else ""
+
+                peer_event = {
+                    "type": "translation",
+                    "session_id": event.get("session_id"),
+                    "sender_client_id": sender_client_id,
+                    "source": event["source"],
+                    "translation": {
+                        "text": translated_text,
+                        "language": target_lang,
+                        "model": event["translation"]["model"],
+                    },
+                    "voice": {
+                        "voice_id": voice.voice_id,
+                        "presentation": voice.presentation,
+                        "pitch_bucket": voice.pitch_bucket,
+                    },
+                    "audio": {
+                        "data": audio_base64,
+                        "content_type": tts_result.content_type,
+                        "error": tts_result.error if hasattr(tts_result, "error") else "",
+                    }
+                }
+                print(f"[RoomManager] Routed dynamically translated audio ({sender_session.source_language}->{target_lang}) from '{sender_client_id}' to peer '{peer_id}'")
+                await peer_emit(peer_event)
+            else:
+                print(f"[RoomManager] Routing translated audio from '{sender_client_id}' to peer '{peer_id}' in room '{room_id}'")
+                await peer_emit(event)
 
         # 2. Send self-caption feedback to the speaker (text only, NO TTS audio)
-        sender_data = room_clients.get(sender_client_id)
         if sender_data:
             self_caption_event = {
                 "type": "self_caption",

@@ -12,6 +12,7 @@ const els = {
   roomGroup: document.querySelector('#roomGroup'),
   roomId: document.querySelector('#roomId'),
   sourceLanguage: document.querySelector('#sourceLanguage'),
+  targetLanguageGroup: document.querySelector('#targetLanguageGroup'),
   targetLanguage: document.querySelector('#targetLanguage'),
   modelName: document.querySelector('#modelName'),
   ttsModel: document.querySelector('#ttsModel'),
@@ -23,9 +24,14 @@ const els = {
   eventLog: document.querySelector('#eventLog'),
 };
 
-els.sessionMode.addEventListener('change', () => {
-  els.roomGroup.style.display = els.sessionMode.value === 'room' ? 'block' : 'none';
-});
+function updateModeVisibility() {
+  const isRoom = els.sessionMode.value === 'room';
+  els.roomGroup.style.display = isRoom ? 'block' : 'none';
+  els.targetLanguageGroup.style.display = isRoom ? 'none' : 'block';
+}
+
+els.sessionMode.addEventListener('change', updateModeVisibility);
+updateModeVisibility();
 
 function getClientId() {
   let clientId = sessionStorage.getItem('live_translator_client_id');
