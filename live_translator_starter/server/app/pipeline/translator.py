@@ -92,9 +92,16 @@ class ByteComputeTranslator:
         src = lang_names.get(source_language, "English")
         tgt = lang_names.get(target_language, "Japanese")
         
+        if target_language == "ja":
+            instruction = f"Translate the following {src} text into natural Japanese. Transliterate all foreign names and proper nouns into Katakana (e.g. Ben -> ベン, Toronto -> トロント). Do not leave English letters in the translation."
+        elif target_language == "zh":
+            instruction = f"Translate the following {src} text into natural Mandarin Chinese. Transliterate all foreign names and proper nouns into Chinese Hanzi characters (e.g. Ben -> 本, Toronto -> 多伦多). Do not leave English letters in the translation."
+        else:
+            instruction = f"Translate the following {src} text into {tgt}."
+        
         prompt = (
-            f"Translate the following {src} text into {tgt}. "
-            "Only return the translated text itself, without any introduction, explanation, or quotes.\n\n"
+            f"{instruction} "
+            "Return ONLY the translated text itself, without any introduction, explanation, or quotes.\n\n"
             f"{text}"
         )
         

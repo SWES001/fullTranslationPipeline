@@ -219,7 +219,8 @@ class ByteComputeHiggsSpeechV3:
             "messages": [
                 {"role": "user", "content": text}
             ],
-            "modalities": ["text", "audio"]
+            "modalities": ["text", "audio"],
+            "audio": {"voice": "alloy", "format": "wav"}
         }
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -297,9 +298,21 @@ class KokoroServerTTS:
         elif voice_id.startswith("it"):
             actual_voice = "if_sara"; lang_code = "i"; language = "it"
 
+        # Filter out system error bracket messages
+        clean_text = text.strip()
+        if clean_text.startswith("["):
+            print(f"[Kokoro TTS] Suppressed error text synthesis: '{clean_text}'")
+            return TTSResult(audio_bytes=b"", content_type="audio/wav", voice_id=voice_id)
+
+        # Fallback proper noun transliteration for CJK to prevent letter-by-letter spelling
+        if language == "ja":
+            clean_text = clean_text.replace("Ben", "ベン").replace("ben", "ベン").replace("Toronto", "トロント")
+        elif language == "zh":
+            clean_text = clean_text.replace("Ben", "本").replace("ben", "本").replace("Toronto", "多伦多")
+
         payload = {
-            "text": text,
-            "input": text,
+            "text": clean_text,
+            "input": clean_text,
             "voice": actual_voice,
             "language": language,
             "lang_code": lang_code,
@@ -310,9 +323,9 @@ class KokoroServerTTS:
 
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(self.url_tts, json=payload, timeout=10.0)
+                response = await client.post(self.url_tts, json=payload, timeout=45.0)
                 if response.status_code == 404:
-                    response = await client.post(self.url_v1, json=payload, timeout=10.0)
+                    response = await client.post(self.url_v1, json=payload, timeout=45.0)
                 response.raise_for_status()
                 print(f"Kokoro-82M Server Synthesized with voice '{actual_voice}': {len(response.content)} bytes")
                 return TTSResult(

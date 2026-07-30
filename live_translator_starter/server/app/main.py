@@ -35,6 +35,16 @@ async def on_shutdown() -> None:
     await shutdown_peer_connections()
 
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
+if os.path.exists("client/src"):
+    app.mount("/src", StaticFiles(directory="client/src"), name="src")
+
+
 @app.get("/")
-async def root() -> dict[str, str]:
+async def root():
+    if os.path.exists("client/index.html"):
+        return FileResponse("client/index.html")
     return {"status": "online", "message": "Live Translator API Backend"}
