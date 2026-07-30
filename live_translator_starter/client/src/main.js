@@ -25,6 +25,206 @@ const els = {
   eventLog: document.querySelector('#eventLog'),
 };
 
+const TRANSLATIONS = {
+  en: {
+    select_language_title: "Select your language",
+    eyebrow: "Real-time speech translator",
+    subtitle: "Mic → WebRTC → ASR → translation → TTS.",
+    username_label: "Username",
+    username_placeholder: "e.g. Ben, Phone, Mac",
+    session_mode_label: "Session Mode",
+    mode_one_way: "One-way (Single Device)",
+    mode_room: "Two-way Room (Multi-Device)",
+    channel_label: "Channel",
+    channel_prefix: "Channel",
+    target_language_label: "Target language",
+    lang_en: "English",
+    lang_es: "Spanish",
+    lang_ja: "Japanese",
+    lang_zh: "Mandarin Chinese",
+    asr_model_label: "ASR model",
+    translation_model_label: "Translation model",
+    tts_model_label: "TTS model",
+    browser_tts_label: "Use browser TTS placeholder",
+    voice_matching_label: "Enable voice matching placeholder",
+    start_session: "Start session",
+    stop_session: "Stop session",
+    clear_log: "Clear",
+    source_transcript_header: "Source transcript",
+    source_transcript_waiting: "Waiting for speech...",
+    translation_header: "Translation",
+    translation_waiting: "Waiting for translated text...",
+    event_log_header: "Event log",
+    status_idle: "Idle",
+    status_connecting: "Connecting",
+    status_connected: "Connected",
+    status_failed: "Failed"
+  },
+  es: {
+    select_language_title: "Selecciona tu idioma",
+    eyebrow: "Traductor de voz en tiempo real",
+    subtitle: "Micrófono → WebRTC → ASR → Traducción → TTS.",
+    username_label: "Nombre de usuario",
+    username_placeholder: "ej. Ben, Teléfono, Mac",
+    session_mode_label: "Modo de sesión",
+    mode_one_way: "Unidireccional (Un dispositivo)",
+    mode_room: "Sala bidireccional (Varios dispositivos)",
+    channel_label: "Canal",
+    channel_prefix: "Canal",
+    target_language_label: "Idioma de destino",
+    lang_en: "Inglés",
+    lang_es: "Español",
+    lang_ja: "Japonés",
+    lang_zh: "Chino mandarín",
+    asr_model_label: "Modelo ASR",
+    translation_model_label: "Modelo de traducción",
+    tts_model_label: "Modelo TTS",
+    browser_tts_label: "Usar TTS del navegador",
+    voice_matching_label: "Habilitar coincidencia de voz",
+    start_session: "Iniciar sesión",
+    stop_session: "Detener sesión",
+    clear_log: "Limpiar",
+    source_transcript_header: "Transcripción original",
+    source_transcript_waiting: "Esperando voz...",
+    translation_header: "Traducción",
+    translation_waiting: "Esperando texto traducido...",
+    event_log_header: "Registro de eventos",
+    status_idle: "Inactivo",
+    status_connecting: "Conectando",
+    status_connected: "Conectado",
+    status_failed: "Error"
+  },
+  ja: {
+    select_language_title: "言語を選択してください",
+    eyebrow: "リアルタイム音声翻訳機",
+    subtitle: "マイク → WebRTC → ASR → 翻訳 → TTS",
+    username_label: "ユーザー名",
+    username_placeholder: "例: Ben, スマホ, Mac",
+    session_mode_label: "セッションモード",
+    mode_one_way: "一方通行 (単一デバイス)",
+    mode_room: "双方向ルーム (複数デバイス)",
+    channel_label: "チャンネル",
+    channel_prefix: "チャンネル",
+    target_language_label: "翻訳先言語",
+    lang_en: "英語",
+    lang_es: "スペイン語",
+    lang_ja: "日本語",
+    lang_zh: "中国語（普通話）",
+    asr_model_label: "ASRモデル",
+    translation_model_label: "翻訳モデル",
+    tts_model_label: "TTSモデル",
+    browser_tts_label: "ブラウザのTTSを使用",
+    voice_matching_label: "音声マッチングを有効化",
+    start_session: "セッション開始",
+    stop_session: "セッション停止",
+    clear_log: "クリア",
+    source_transcript_header: "音声テキスト",
+    source_transcript_waiting: "音声入力待ち...",
+    translation_header: "翻訳結果",
+    translation_waiting: "翻訳テキスト待ち...",
+    event_log_header: "イベントログ",
+    status_idle: "待機中",
+    status_connecting: "接続中",
+    status_connected: "接続完了",
+    status_failed: "接続失敗"
+  },
+  zh: {
+    select_language_title: "选择您的语言",
+    eyebrow: "实时语音翻译器",
+    subtitle: "麦克风 → WebRTC → ASR → 翻译 → TTS",
+    username_label: "用户名",
+    username_placeholder: "例如: Ben, 手机, Mac",
+    session_mode_label: "会话模式",
+    mode_one_way: "单向 (单设备)",
+    mode_room: "双向房间 (多设备)",
+    channel_label: "频道",
+    channel_prefix: "频道",
+    target_language_label: "目标语言",
+    lang_en: "英语",
+    lang_es: "西班牙语",
+    lang_ja: "日语",
+    lang_zh: "中文（普通话）",
+    asr_model_label: "ASR模型",
+    translation_model_label: "翻译模型",
+    tts_model_label: "TTS模型",
+    browser_tts_label: "使用浏览器TTS",
+    voice_matching_label: "启用声音匹配",
+    start_session: "开始会话",
+    stop_session: "停止会话",
+    clear_log: "清除",
+    source_transcript_header: "原始语音",
+    source_transcript_waiting: "等待语音输入...",
+    translation_header: "翻译文本",
+    translation_waiting: "等待翻译文本...",
+    event_log_header: "事件日志",
+    status_idle: "空闲",
+    status_connecting: "连接中",
+    status_connected: "已连接",
+    status_failed: "连接失败"
+  }
+};
+
+let currentLanguage = "en";
+
+function setLanguage(lang) {
+  currentLanguage = lang;
+  if (els.sourceLanguage) {
+    els.sourceLanguage.value = lang;
+  }
+
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === lang);
+  });
+
+  const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (t[key]) {
+      el.textContent = t[key];
+    }
+  });
+
+  if (els.targetLanguage) {
+    for (const option of els.targetLanguage.options) {
+      const key = `lang_${option.value}`;
+      if (t[key]) {
+        option.text = t[key];
+      }
+    }
+  }
+
+  if (els.roomId) {
+    const prefix = t.channel_prefix || "Channel";
+    for (let i = 0; i < els.roomId.options.length; i++) {
+      els.roomId.options[i].text = `${prefix} ${i + 1}`;
+    }
+  }
+
+  if (els.username && t.username_placeholder) els.username.placeholder = t.username_placeholder;
+  if (els.roomId && t.room_name_placeholder) els.roomId.placeholder = t.room_name_placeholder;
+
+  if (els.sessionMode && els.sessionMode.options.length >= 2) {
+    els.sessionMode.options[0].text = t.mode_one_way;
+    els.sessionMode.options[1].text = t.mode_room;
+  }
+
+  const sourceWaitingEl = document.querySelector('#sourceTranscript.empty');
+  if (sourceWaitingEl) sourceWaitingEl.textContent = t.source_transcript_waiting;
+
+  const transWaitingEl = document.querySelector('#translationTranscript.empty');
+  if (transWaitingEl) transWaitingEl.textContent = t.translation_waiting;
+
+  localStorage.setItem('live_translator_language', lang);
+  logEvent(`Language set to: ${lang.toUpperCase()}`);
+}
+
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setLanguage(btn.dataset.lang);
+  });
+});
+
 const savedUsername = localStorage.getItem('live_translator_username') || `User-${Math.floor(100 + Math.random() * 900)}`;
 els.username.value = savedUsername;
 els.username.addEventListener('change', () => {
@@ -35,12 +235,16 @@ els.username.addEventListener('change', () => {
 
 function updateModeVisibility() {
   const isRoom = els.sessionMode.value === 'room';
-  els.roomGroup.style.display = isRoom ? 'block' : 'none';
-  els.targetLanguageGroup.style.display = isRoom ? 'none' : 'block';
+  els.roomGroup.style.display = isRoom ? 'grid' : 'none';
+  els.targetLanguageGroup.style.display = isRoom ? 'none' : 'grid';
 }
 
 els.sessionMode.addEventListener('change', updateModeVisibility);
 updateModeVisibility();
+
+// Initialize language from saved setting or default to English
+const initialLang = localStorage.getItem('live_translator_language') || 'en';
+setLanguage(initialLang);
 
 function getClientId() {
   const customName = els.username.value.trim();
@@ -133,7 +337,7 @@ async function startSession() {
         model: els.modelName.value,
         asr_model: els.asrModel.value,
         tts_model: els.ttsModel.value,
-        voice_matching: els.voiceMatching.checked,
+        voice_matching: els.voiceMatching?.checked || false,
         session_mode: els.sessionMode.value,
         room_id: roomName,
         client_id: clientId,

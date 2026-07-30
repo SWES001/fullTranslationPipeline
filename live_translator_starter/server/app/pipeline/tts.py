@@ -269,23 +269,41 @@ class KokoroServerTTS:
         }
         
         actual_voice = "af_heart"
+        lang_code = "a"
+        language = "en-us"
+
         if voice_id in valid_kokoro_voices:
             actual_voice = voice_id
+            if voice_id.startswith("ef") or voice_id.startswith("em"):
+                lang_code = "e"; language = "es"
+            elif voice_id.startswith("jf") or voice_id.startswith("jm"):
+                lang_code = "j"; language = "ja"
+            elif voice_id.startswith("zf") or voice_id.startswith("zm"):
+                lang_code = "z"; language = "zh"
+            elif voice_id.startswith("ff"):
+                lang_code = "f"; language = "fr"
+            elif voice_id.startswith("if"):
+                lang_code = "i"; language = "it"
+            elif voice_id.startswith("bf") or voice_id.startswith("bm"):
+                lang_code = "b"; language = "en-gb"
         elif voice_id.startswith("es"):
-            actual_voice = "ef_dora"
+            actual_voice = "ef_dora"; lang_code = "e"; language = "es"
         elif voice_id.startswith("ja"):
-            actual_voice = "jf_alpha"
+            actual_voice = "jf_alpha"; lang_code = "j"; language = "ja"
         elif voice_id.startswith("zh"):
-            actual_voice = "zf_xiaobei"
+            actual_voice = "zf_xiaobei"; lang_code = "z"; language = "zh"
         elif voice_id.startswith("fr"):
-            actual_voice = "ff_siwis"
+            actual_voice = "ff_siwis"; lang_code = "f"; language = "fr"
         elif voice_id.startswith("it"):
-            actual_voice = "if_sara"
+            actual_voice = "if_sara"; lang_code = "i"; language = "it"
 
         payload = {
             "text": text,
             "input": text,
             "voice": actual_voice,
+            "language": language,
+            "lang_code": lang_code,
+            "lang": language,
             "speed": 1.0,
             "response_format": "wav"
         }

@@ -108,7 +108,8 @@ label {
   font-weight: 700;
 }
 
-select, button {
+select, input[type="text"], button {
+  width: 100%;
   min-height: 44px;
   border-radius: 14px;
   border: 1px solid #d7deeb;
@@ -213,4 +214,55 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   .controls { grid-template-columns: 1fr; }
   .button-row { width: 100%; }
   .button-row button { flex: 1; }
+  .language-buttons { grid-template-columns: repeat(2, 1fr); }
+}
+
+.language-bar-panel {
+  margin-bottom: 16px;
+  padding: 18px 24px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(54, 107, 255, 0.2);
+}
+
+.language-bar-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #52627a;
+  margin-bottom: 12px;
+}
+
+.language-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.lang-btn {
+  padding: 14px 16px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-radius: 16px;
+  border: 2px solid #e1e7f0;
+  background: #ffffff;
+  color: #172033;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.lang-btn:hover {
+  border-color: #366bff;
+  background: #f0f4ff;
+}
+
+.lang-btn.active {
+  border-color: #366bff;
+  background: #366bff;
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(54, 107, 255, 0.25);
 }

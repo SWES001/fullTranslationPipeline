@@ -20,47 +20,69 @@
         </div>
       </section>
 
+      <section class="panel language-bar-panel">
+        <div class="language-bar-title" data-i18n="select_language_title">Select your language</div>
+        <div class="language-buttons">
+          <button type="button" class="lang-btn" data-lang="en">English</button>
+          <button type="button" class="lang-btn" data-lang="es">Español</button>
+          <button type="button" class="lang-btn" data-lang="ja">日本語</button>
+          <button type="button" class="lang-btn" data-lang="zh">中文</button>
+        </div>
+        <input type="hidden" id="sourceLanguage" value="en" />
+      </section>
+
       <section class="panel controls">
         <label>
-          Username
+          <span data-i18n="username_label">Username</span>
           <input id="username" type="text" value="" placeholder="e.g. Ben, Phone, Mac" />
         </label>
 
         <label>
-          Session Mode
+          <span data-i18n="session_mode_label">Session Mode</span>
           <select id="sessionMode">
-            <option value="one_way" selected>One-way (Single Device)</option>
-            <option value="room">Two-way Room (Multi-Device)</option>
+            <option value="one_way" selected data-i18n="mode_one_way">One-way (Single Device)</option>
+            <option value="room" data-i18n="mode_room">Two-way Room (Multi-Device)</option>
           </select>
         </label>
 
         <label id="roomGroup" style="display: none;">
-          Room Name
-          <input id="roomId" type="text" value="Testing Room" placeholder="e.g. Testing Room" />
-        </label>
-
-        <label>
-          My language
-          <select id="sourceLanguage">
-            <option value="ja">Japanese</option>
-            <option value="en">English</option>
-            <option value="es" selected>Spanish</option>
-            <option value="zh">Mandarin Chinese</option>
+          <span data-i18n="channel_label">Channel</span>
+          <select id="roomId">
+            <option value="Channel 1">Channel 1</option>
+            <option value="Channel 2">Channel 2</option>
+            <option value="Channel 3">Channel 3</option>
+            <option value="Channel 4">Channel 4</option>
+            <option value="Channel 5">Channel 5</option>
+            <option value="Channel 6">Channel 6</option>
+            <option value="Channel 7">Channel 7</option>
+            <option value="Channel 8">Channel 8</option>
+            <option value="Channel 9">Channel 9</option>
+            <option value="Channel 10">Channel 10</option>
+            <option value="Channel 11">Channel 11</option>
+            <option value="Channel 12">Channel 12</option>
+            <option value="Channel 13">Channel 13</option>
+            <option value="Channel 14">Channel 14</option>
+            <option value="Channel 15">Channel 15</option>
+            <option value="Channel 16">Channel 16</option>
+            <option value="Channel 17">Channel 17</option>
+            <option value="Channel 18">Channel 18</option>
+            <option value="Channel 19">Channel 19</option>
+            <option value="Channel 20">Channel 20</option>
           </select>
         </label>
 
         <label id="targetLanguageGroup">
-          Target language
+          <span data-i18n="target_language_label">Target language</span>
           <select id="targetLanguage">
             <option value="en" selected>English</option>
-            <option value="ja">Japanese</option>
-            <option value="es">Spanish</option>
-            <option value="zh">Mandarin Chinese</option>
+            <option value="es">Español</option>
+            <option value="ja">日本語</option>
+            <option value="zh">中文</option>
           </select>
         </label>
 
         <label>
-          ASR model
+          <span data-i18n="asr_model_label">ASR model</span>
           <select id="asrModel">
             <option value="fake">Fake ASR (Simulator / Offline)</option>
             <option value="openai/whisper-large-v3" selected>Whisper Large V3 (ByteCompute API)</option>
@@ -72,7 +94,7 @@
         </label>
 
         <label>
-          Translation model
+          <span data-i18n="translation_model_label">Translation model</span>
           <select id="modelName">
             <option value="bytecompute/gemma-4-E4B-it" selected>Gemma 4 E4B (ByteCompute API)</option>
             <option value="tencent/Hy-MT2-1.8B">Hy-MT2-1.8B</option>
@@ -82,7 +104,7 @@
         </label>
 
         <label>
-          TTS model
+          <span data-i18n="tts_model_label">TTS model</span>
           <select id="ttsModel">
             <option value="Kokoro-82M-Server" selected>Kokoro-82M (Port 31241)</option>
             <option value="bytecompute/higgs-speech-v3">Higgs Speech V3 (ByteCompute API)</option>
@@ -95,42 +117,37 @@
 
         <label class="check-row">
           <input id="browserTts" type="checkbox" />
-          Use browser TTS placeholder
-        </label>
-
-        <label class="check-row">
-          <input id="voiceMatching" type="checkbox" />
-          Enable voice matching placeholder
+          <span data-i18n="browser_tts_label">Use browser TTS placeholder</span>
         </label>
 
         <div class="button-row">
-          <button id="startButton" class="primary">Start session</button>
-          <button id="stopButton" disabled>Stop</button>
+          <button id="startButton" class="primary" data-i18n="start_session">Start session</button>
+          <button id="stopButton" disabled data-i18n="stop_session">Stop</button>
         </div>
       </section>
 
       <section class="grid">
         <article class="panel transcript-card">
           <div class="panel-title">
-            <h2>Source transcript</h2>
+            <h2 data-i18n="source_transcript_header">Source transcript</h2>
             <span class="pill">ASR</span>
           </div>
-          <div id="sourceTranscript" class="transcript empty">Waiting for speech...</div>
+          <div id="sourceTranscript" class="transcript empty" data-i18n="source_transcript_waiting">Waiting for speech...</div>
         </article>
 
         <article class="panel transcript-card">
           <div class="panel-title">
-            <h2>Translation</h2>
+            <h2 data-i18n="translation_header">Translation</h2>
             <span class="pill">MT + TTS</span>
           </div>
-          <div id="translationTranscript" class="transcript empty">Waiting for translated text...</div>
+          <div id="translationTranscript" class="transcript empty" data-i18n="translation_waiting">Waiting for translated text...</div>
         </article>
       </section>
 
       <section class="panel">
         <div class="panel-title">
-          <h2>Event log</h2>
-          <button id="clearLogButton" class="ghost">Clear</button>
+          <h2 data-i18n="event_log_header">Event log</h2>
+          <button id="clearLogButton" class="ghost" data-i18n="clear_log">Clear</button>
         </div>
         <pre id="eventLog" class="log"></pre>
       </section>
