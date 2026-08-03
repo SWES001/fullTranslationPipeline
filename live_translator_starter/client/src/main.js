@@ -273,6 +273,10 @@ async function startSession() {
   logEvent('Requesting microphone permission...');
 
   try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Microphone access is blocked by your browser over HTTP. Please access the site via HTTPS (https://74.2.96.26:8001) or localhost.");
+    }
+
     localStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -326,7 +330,10 @@ async function startSession() {
       logEvent(`Starting One-way (Single Device) session`);
     }
 
-    const response = await fetch('http://74.2.96.26:8000/offer', {
+    const hostName = window.location.hostname || '74.2.96.26';
+    const offerUrl = `http://${hostName}:30001/offer`;
+
+    const response = await fetch(offerUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
