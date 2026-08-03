@@ -330,8 +330,9 @@ async function startSession() {
       logEvent(`Starting One-way (Single Device) session`);
     }
 
-    const hostName = window.location.hostname || '74.2.96.26';
-    const offerUrl = `http://${hostName}:30001/offer`;
+    const offerUrl = window.location.port === '30001'
+      ? '/offer'
+      : 'http://74.2.96.26:30001/offer';
 
     const response = await fetch(offerUrl, {
       method: 'POST',
