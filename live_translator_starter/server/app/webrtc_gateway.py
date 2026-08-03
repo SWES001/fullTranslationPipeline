@@ -123,6 +123,12 @@ class RoomManager:
 ROOM_MANAGER = RoomManager()
 
 
+def finish_session(session: TranslationSession, client_id: str) -> None:
+    metrics_path = session.save_metrics()
+    if metrics_path:
+        print(f"[Metrics] Saved session metrics for '{client_id}' to {metrics_path}")
+
+
 async def create_answer(request: OfferRequest) -> dict[str, str]:
     """Create a WebRTC answer for a browser offer.
 
@@ -188,6 +194,7 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
         if state in {"failed", "closed", "disconnected"}:
             if is_room_mode:
                 ROOM_MANAGER.unregister_client(room_id, client_id)
+            finish_session(session, client_id)
             await peer_connection.close()
             PEER_CONNECTIONS.discard(peer_connection)
 
@@ -227,6 +234,7 @@ async def consume_audio_track(
             print(f"[WebRTC] Audio track stream ended for client '{client_id}': {exc}")
             if is_room_mode:
                 ROOM_MANAGER.unregister_client(room_id, client_id)
+            finish_session(session, client_id)
             await emit({"type": "track_closed", "detail": str(exc)})
             return
 
@@ -262,4 +270,3 @@ async def shutdown_peer_connections() -> None:
     if coroutines:
         await asyncio.gather(*coroutines)
     PEER_CONNECTIONS.clear()
-

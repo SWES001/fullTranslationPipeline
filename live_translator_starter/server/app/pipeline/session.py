@@ -1,4 +1,7 @@
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+import json
+from pathlib import Path
 from typing import Iterable, Optional
 from uuid import uuid4
 
@@ -19,6 +22,9 @@ class TranslationSession:
     tts_model: str = "Kokoro-82M-Server"
     voice_matching: bool = False
     session_id: str = field(default_factory=lambda: str(uuid4()))
+    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    metrics: list[dict] = field(default_factory=list)
+    metrics_saved: bool = False
 
     def __post_init__(self) -> None:
         if self.asr_model in ("bytecompute/gemma-4-E4B-it", "google/gemma-4-E4B-it", "gemma-4-E4B-it", "gemma-4-e4b"):
@@ -98,6 +104,22 @@ class TranslationSession:
         tts_end = time.time()
         tts_ms = int((tts_end - tts_start) * 1000)
         ttfa_ms = int((tts_end - start_time) * 1000)
+        metric = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source_language": self.source_language,
+            "target_language": self.target_language,
+            "asr_model": self.asr_model,
+            "translation_model": self.model_name,
+            "tts_model": self.tts_model,
+            "asr_ms": asr_ms,
+            "trans_ms": trans_ms,
+            "ttft_ms": ttft_ms,
+            "tts_ms": tts_ms,
+            "ttfa_ms": ttfa_ms,
+            "source_text": committed_text,
+            "translated_text": translated_text,
+        }
+        self.metrics.append(metric)
         
         import base64
         audio_base64 = base64.b64encode(tts_result.audio_bytes).decode("utf-8") if tts_result.audio_bytes else ""
@@ -131,3 +153,40 @@ class TranslationSession:
                 "error": tts_result.error if hasattr(tts_result, "error") else "",
             }
         }
+
+    def save_metrics(self) -> Optional[Path]:
+        if self.metrics_saved:
+            return None
+
+        self.metrics_saved = True
+        finished_at = datetime.now(timezone.utc)
+        metrics_dir = Path(__file__).resolve().parents[3] / "metrics"
+        metrics_dir.mkdir(exist_ok=True)
+        path = metrics_dir / f"{finished_at.strftime('%Y%m%dT%H%M%SZ')}_{self.session_id}.json"
+
+        def average(key: str) -> Optional[float]:
+            values = [metric[key] for metric in self.metrics if key in metric]
+            return round(sum(values) / len(values), 2) if values else None
+
+        payload = {
+            "session_id": self.session_id,
+            "started_at": self.started_at.isoformat(),
+            "finished_at": finished_at.isoformat(),
+            "source_language": self.source_language,
+            "target_language": self.target_language,
+            "asr_model": self.asr_model,
+            "translation_model": self.model_name,
+            "tts_model": self.tts_model,
+            "voice_matching": self.voice_matching,
+            "utterance_count": len(self.metrics),
+            "averages_ms": {
+                "asr": average("asr_ms"),
+                "trans": average("trans_ms"),
+                "ttft": average("ttft_ms"),
+                "tts": average("tts_ms"),
+                "ttfa": average("ttfa_ms"),
+            },
+            "utterances": self.metrics,
+        }
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        return path
