@@ -75,12 +75,10 @@ class FakeASR:
 
 
 class QwenASR:
-    """Connects to your company's Qwen3 vLLM ASR server (UNWIRED / DISABLED)."""
+    """Connects to Qwen3 vLLM ASR server at http://74.2.96.18:30100/v1/audio/transcriptions."""
 
-    def __init__(self, server_ip: str = "74.2.96.26", port: int = 30407):
-        # UNWIRED: Qwen3 disabled per requirement
-        # self.url = f"http://{server_ip}:{port}/v1/audio/transcriptions"
-        self.url = ""
+    def __init__(self, server_ip: str = "74.2.96.18", port: int = 30100):
+        self.url = f"http://{server_ip}:{port}/v1/audio/transcriptions"
         self.model_name = "Qwen/Qwen3-ASR-1.7B"
         self.api_key = "sk-proj-8-W-hNfM9cJ_t_gL4pQ4k_t2sXzY9uW9O0iZ7bA"
 
@@ -98,7 +96,6 @@ class QwenASR:
                 "file": ("audio.wav", wav_bytes, "audio/wav")
             }
             
-            # Language lock prompts to prevent the model from hallucinating other languages
             prompt_map = {
                 "en": "English speech transcription.",
                 "ja": "日本語の文字起こし。",
@@ -118,12 +115,13 @@ class QwenASR:
                 response = await client.post(self.url, headers=headers, files=files, data=data, timeout=60.0)
                 response.raise_for_status()
                 result = response.json()
-                text = result.get("text", "")
-                print(f"Qwen3 ASR Transcribed: '{text}'")
+                raw_text = result.get("text", "").strip()
+                text = filter_whisper_hallucinations(raw_text)
+                print(f"Qwen3 ASR Transcribed: '{text}' (raw: '{raw_text}')")
                 return ASRResult(
                     text=text,
                     is_final=True,
-                    confidence=0.99,
+                    confidence=0.99 if text else 0.0,
                     language=source_language,
                 )
             except Exception as e:
@@ -131,7 +129,7 @@ class QwenASR:
                 print(f"Qwen ASR Exception Traceback ({self.url}):")
                 traceback.print_exc()
                 return ASRResult(
-                    text=f"[ASR Connection Error ({self.url}): {e}]",
+                    text=f"[Qwen ASR Error ({self.url}): {e}]",
                     is_final=True,
                     confidence=0.0,
                     language=source_language,
@@ -147,7 +145,11 @@ WHISPER_HALLUCINATION_KEYWORDS = [
 ]
 
 WHISPER_HALLUCINATION_EXACT = {
-    "gracias", "gracias.", "gracias!", "¡gracias!", "thanks.", "thanks!", "thank you.",
+    "gracias", "gracias.", "gracias!", "¡gracias!", "muchas gracias", "muchas gracias.",
+    "suscríbete", "suscríbete.", "suscríbete!", "¡suscríbete!", "subscríbete",
+    "y ya está.", "y ya está", "y ya esta.", "y ya esta", "y ya está!", "¡y ya está!",
+    "amén.", "amén", "amen", "amen.",
+    "thanks.", "thanks!", "thank you.", "thank you!",
     "subtitles", "subtitles.", "bye.", "bye!", "bye bye.", "bye-bye.",
     "shh", "shh.", "hiss", "cough", "gasp", "sigh", "laughter", "chuckle",
     "um", "uh", "ah", "oh", "eh"
@@ -162,11 +164,11 @@ def filter_whisper_hallucinations(text: str) -> str:
     normalized = cleaned.lower()
     
     # 1. Exact match check
-    if normalized.rstrip(".!?,") in {p.rstrip(".!?,") for p in WHISPER_HALLUCINATION_EXACT}:
+    if normalized.rstrip(".!?,¡¿") in {p.rstrip(".!?,¡¿") for p in WHISPER_HALLUCINATION_EXACT}:
         print(f"[ASR Filter] Suppressed exact Whisper hallucination: '{cleaned}'")
         return ""
         
-    # 2. Keyword substring check (e.g. MING PAO CANADA // MING PAO TORONTO)
+    # 2. Keyword substring check
     for kw in WHISPER_HALLUCINATION_KEYWORDS:
         if kw in normalized:
             print(f"[ASR Filter] Suppressed Whisper hallucination containing '{kw}': '{cleaned}'")

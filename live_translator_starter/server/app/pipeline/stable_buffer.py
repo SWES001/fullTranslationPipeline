@@ -8,6 +8,8 @@ HALLUCINATED_PHRASES = {
     "gracias",
     "gracias.",
     "gracias!",
+    "¡gracias!",
+    "muchas gracias",
     "gracias por ver",
     "gracias por ver!",
     "gracias por ver.",
@@ -15,7 +17,16 @@ HALLUCINATED_PHRASES = {
     "suscríbete",
     "suscríbete.",
     "suscríbete!",
+    "¡suscríbete!",
     "suscríbete al canal",
+    "y ya está",
+    "y ya está.",
+    "y ya está!",
+    "¡y ya está!",
+    "y ya esta",
+    "amén",
+    "amén.",
+    "amen",
     "subscribe",
     "subscribe!",
     "thanks for watching",
@@ -29,7 +40,7 @@ HALLUCINATED_PHRASES = {
 
 def is_hallucinated(text: str) -> bool:
     cleaned = text.strip().lower()
-    if cleaned in HALLUCINATED_PHRASES or cleaned.rstrip(".!?,") in HALLUCINATED_PHRASES:
+    if cleaned in HALLUCINATED_PHRASES or cleaned.rstrip(".!?,¡¿") in HALLUCINATED_PHRASES:
         return True
     return False
 

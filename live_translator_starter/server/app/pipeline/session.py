@@ -33,8 +33,8 @@ class TranslationSession:
             self.asr = ByteComputeWhisperTurboASR()
         elif self.asr_model in ("openai/whisper-large-v3", "whisper-large-v3", "bytecompute/whisper-large-v3"):
             self.asr = ByteComputeWhisperASR()
-        # elif self.asr_model == "Qwen/Qwen3-ASR-1.7B":
-        #     self.asr = QwenASR(server_ip=config.asr_server_ip)
+        elif self.asr_model in ("Qwen/Qwen3-ASR-1.7B", "Qwen3-ASR-1.7B", "qwen3-asr"):
+            self.asr = QwenASR(server_ip="74.2.96.18", port=30100)
         elif self.asr_model == "CohereLabs/cohere-transcribe-03-2026":
             self.asr = CohereASR(server_ip=config.asr_server_ip)
         else:
