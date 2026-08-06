@@ -311,21 +311,18 @@ class KokoroServerTTS:
             clean_text = clean_text.replace("Ben", "本").replace("ben", "本").replace("Toronto", "多伦多")
 
         payload = {
-            "text": clean_text,
+            "model": "kokoro",
             "input": clean_text,
             "voice": actual_voice,
-            "language": language,
-            "lang_code": lang_code,
-            "lang": language,
+            "response_format": "wav",
             "speed": 1.0,
-            "response_format": "wav"
         }
 
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(self.url_tts, json=payload, timeout=45.0)
+                response = await client.post(self.url_v1, json=payload, timeout=45.0)
                 if response.status_code == 404:
-                    response = await client.post(self.url_v1, json=payload, timeout=45.0)
+                    response = await client.post(self.url_tts, json=payload, timeout=45.0)
                 response.raise_for_status()
                 print(f"Kokoro-82M Server Synthesized with voice '{actual_voice}': {len(response.content)} bytes")
                 return TTSResult(
@@ -333,15 +330,29 @@ class KokoroServerTTS:
                     content_type="audio/wav",
                     voice_id=voice_id
                 )
+            except httpx.HTTPStatusError as exc:
+                detail = exc.response.text.strip() or "No response body returned by Kokoro."
+                print(
+                    f"Kokoro HTTP {exc.response.status_code} from {exc.request.url}: {detail}"
+                    )
+                return TTSResult(
+                    audio_bytes=b"",
+                    content_type="audio/wav",
+                    voice_id=voice_id,
+                    error=(
+                        f"Kokoro HTTP {exc.response.status_code} from "
+                        f"{exc.request.url}: {detail}"
+                        ),
+                        )
             except Exception as e:
                 import traceback
-                print(f"Kokoro-82M Server Error ({self.url_tts}): {e}")
+                print(f"Kokoro-82M Server Error: {e}")
                 traceback.print_exc()
                 return TTSResult(
                     audio_bytes=b"",
                     content_type="audio/wav",
                     voice_id=voice_id,
-                    error=f"Kokoro-82M Server connection error ({self.url_tts}): {e}"
+                    error=f"Kokoro-82M Server connection error: {e}"
                 )
 
 
