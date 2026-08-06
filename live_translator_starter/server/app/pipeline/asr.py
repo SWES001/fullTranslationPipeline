@@ -77,20 +77,16 @@ class FakeASR:
 class QwenASR:
     """Connects to Qwen3 vLLM ASR server at http://74.2.96.18:30100/v1/audio/transcriptions."""
 
-    def __init__(self, server_ip: str = "74.2.96.18", port: int = 30100):
+    def __init__(self, server_ip: str = "74.2.96.18", port: int = 30100, api_key: str = ""):
         self.url = f"http://{server_ip}:{port}/v1/audio/transcriptions"
         self.model_name = "Qwen/Qwen3-ASR-1.7B"
-        self.api_key = "sk-proj-8-W-hNfM9cJ_t_gL4pQ4k_t2sXzY9uW9O0iZ7bA"
+        self.api_key = api_key
 
     async def transcribe_pcm(self, frames: Iterable[object], source_language: str) -> ASRResult:
         wav_bytes = frames_to_wav_bytes(list(frames))
         if not wav_bytes:
             return ASRResult(text="", is_final=True, confidence=0.0, language=source_language)
             
-        headers = {
-            "Authorization": f"Bearer {self.api_key}"
-        }
-        
         async with httpx.AsyncClient() as client:
             files = {
                 "file": ("audio.wav", wav_bytes, "audio/wav")
@@ -111,8 +107,20 @@ class QwenASR:
             if prompt_text:
                 data["prompt"] = prompt_text
                 
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+
             try:
                 response = await client.post(self.url, headers=headers, files=files, data=data, timeout=60.0)
+                # If 401 unauthorized, retry once without Authorization header
+                if response.status_code == 401 and headers:
+                    print(f"[Qwen3 ASR] Received 401 with API key, retrying without Authorization header...")
+                    response = await client.post(self.url, files=files, data=data, timeout=60.0)
+                elif response.status_code == 401:
+                    print(f"[Qwen3 ASR] Received 401 without API key, retrying with Bearer EMPTY...")
+                    response = await client.post(self.url, headers={"Authorization": "Bearer EMPTY"}, files=files, data=data, timeout=60.0)
+                    
                 response.raise_for_status()
                 result = response.json()
                 raw_text = result.get("text", "").strip()
