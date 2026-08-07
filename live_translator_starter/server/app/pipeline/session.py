@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from time import perf_counter
 from typing import Iterable, Optional
 from uuid import uuid4
 
@@ -66,11 +67,10 @@ class TranslationSession:
         self.voice_selector = VoiceSelector()
 
     async def process_audio_window(self, frames: Iterable[object]) -> Optional[dict]:
-        import time
-        start_time = time.time()
+        start_time = perf_counter()
 
         asr_result = await self.asr.transcribe_pcm(frames, self.source_language)
-        asr_end = time.time()
+        asr_end = perf_counter()
         asr_ms = int((asr_end - start_time) * 1000)
 
         committed_text = self.stable_buffer.commit(asr_result)
@@ -87,23 +87,23 @@ class TranslationSession:
                 },
             }
 
-        trans_start = time.time()
+        trans_start = perf_counter()
         translated_text = await self.translator.translate(
             committed_text,
             source_language=self.source_language,
             target_language=self.target_language,
         )
-        trans_end = time.time()
+        trans_end = perf_counter()
         trans_ms = int((trans_end - trans_start) * 1000)
-        ttft_ms = int((trans_end - start_time) * 1000)
+        text_ready_ms = int((trans_end - start_time) * 1000)
 
         voice = self.voice_selector.select(self.target_language, self.voice_matching)
 
-        tts_start = time.time()
+        tts_start = perf_counter()
         tts_result = await self.tts.synthesize(translated_text, voice.voice_id)
-        tts_end = time.time()
+        tts_end = perf_counter()
         tts_ms = int((tts_end - tts_start) * 1000)
-        ttfa_ms = int((tts_end - start_time) * 1000)
+        audio_ready_ms = int((tts_end - start_time) * 1000)
         metric = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "source_language": self.source_language,
@@ -113,9 +113,9 @@ class TranslationSession:
             "tts_model": self.tts_model,
             "asr_ms": asr_ms,
             "trans_ms": trans_ms,
-            "ttft_ms": ttft_ms,
+            "text_ready_ms": text_ready_ms,
             "tts_ms": tts_ms,
-            "ttfa_ms": ttfa_ms,
+            "audio_ready_ms": audio_ready_ms,
             "source_text": committed_text,
             "translated_text": translated_text,
         }
@@ -130,8 +130,8 @@ class TranslationSession:
             "asr_ms": asr_ms,
             "trans_ms": trans_ms,
             "tts_ms": tts_ms,
-            "ttft_ms": ttft_ms,
-            "ttfa_ms": ttfa_ms,
+            "text_ready_ms": text_ready_ms,
+            "audio_ready_ms": audio_ready_ms,
             "source": {
                 "text": committed_text,
                 "language": self.source_language,
@@ -154,13 +154,12 @@ class TranslationSession:
             }
         }
 
-    def save_metrics(self) -> Optional[Path]:
+    def save_metrics(self, metrics_dir: Optional[Path] = None) -> Optional[Path]:
         if self.metrics_saved:
             return None
 
-        self.metrics_saved = True
         finished_at = datetime.now(timezone.utc)
-        metrics_dir = Path(__file__).resolve().parents[3] / "metrics"
+        metrics_dir = metrics_dir or Path(__file__).resolve().parents[3] / "metrics"
         metrics_dir.mkdir(exist_ok=True)
         path = metrics_dir / f"{finished_at.strftime('%Y%m%dT%H%M%SZ')}_{self.session_id}.json"
 
@@ -179,14 +178,21 @@ class TranslationSession:
             "tts_model": self.tts_model,
             "voice_matching": self.voice_matching,
             "utterance_count": len(self.metrics),
+            "timing_definitions": {
+                "text_ready_ms": "ASR start until translated text is available to this non-streaming pipeline",
+                "audio_ready_ms": "ASR start until synthesized audio is available to this non-streaming pipeline",
+            },
             "averages_ms": {
                 "asr": average("asr_ms"),
                 "trans": average("trans_ms"),
-                "ttft": average("ttft_ms"),
+                "text_ready": average("text_ready_ms"),
                 "tts": average("tts_ms"),
-                "ttfa": average("ttfa_ms"),
+                "audio_ready": average("audio_ready_ms"),
             },
             "utterances": self.metrics,
         }
-        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary_path = path.with_suffix(".tmp")
+        temporary_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary_path.replace(path)
+        self.metrics_saved = True
         return path

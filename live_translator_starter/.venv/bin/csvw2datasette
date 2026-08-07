@@ -1,6 +1,0 @@
-#!/Users/benguo/Documents/GitHub/fullTranslationPipeline/live_translator_starter/.venv/bin/python3
-import sys
-from csvw.__main__ import csvw2datasette
-if __name__ == '__main__':
-    sys.argv[0] = sys.argv[0].removesuffix('.exe')
-    sys.exit(csvw2datasette())

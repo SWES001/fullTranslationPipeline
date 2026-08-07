@@ -40,6 +40,8 @@ HALLUCINATED_PHRASES = {
 
 def is_hallucinated(text: str) -> bool:
     cleaned = text.strip().lower()
+    if cleaned.startswith("[") and cleaned.endswith("]"):
+        return True
     if cleaned in HALLUCINATED_PHRASES or cleaned.rstrip(".!?,¡¿") in HALLUCINATED_PHRASES:
         return True
     return False

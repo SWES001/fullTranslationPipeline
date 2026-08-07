@@ -243,8 +243,32 @@ els.sessionMode.addEventListener('change', updateModeVisibility);
 updateModeVisibility();
 
 // Initialize language from saved setting or default to English
-const initialLang = localStorage.getItem('live_translator_language') || 'en';
+const savedLanguage = localStorage.getItem('live_translator_language');
+const initialLang = savedLanguage || 'en';
 setLanguage(initialLang);
+
+function selectIfAvailable(select, value) {
+  if (value && Array.from(select.options).some(option => option.value === value)) {
+    select.value = value;
+  }
+}
+
+async function loadServerDefaults() {
+  try {
+    const response = await fetch('/config');
+    if (!response.ok) return;
+    const defaults = await response.json();
+    if (!savedLanguage && defaults.source_language) setLanguage(defaults.source_language);
+    selectIfAvailable(els.targetLanguage, defaults.target_language);
+    selectIfAvailable(els.modelName, defaults.translation_model);
+    selectIfAvailable(els.asrModel, defaults.asr_model);
+    selectIfAvailable(els.ttsModel, defaults.tts_model);
+  } catch (error) {
+    logEvent(`Could not load server defaults: ${error.message}`);
+  }
+}
+
+await loadServerDefaults();
 
 function getClientId() {
   const customName = els.username.value.trim();
@@ -330,11 +354,7 @@ async function startSession() {
       logEvent(`Starting One-way (Single Device) session`);
     }
 
-    const offerUrl = window.location.port === '30001'
-      ? '/offer'
-      : 'http://74.2.96.26:30001/offer';
-
-    const response = await fetch(offerUrl, {
+    const response = await fetch('/offer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -424,11 +444,11 @@ function handleServerEvent(rawData) {
 
     const asrStr = message.asr_ms !== undefined ? `ASR: ${message.asr_ms}ms` : '';
     const transStr = message.trans_ms !== undefined ? `Trans: ${message.trans_ms}ms` : '';
-    const ttftStr = message.ttft_ms !== undefined ? `TTFT: ${message.ttft_ms}ms` : '';
+    const textReadyStr = message.text_ready_ms !== undefined ? `Text ready: ${message.text_ready_ms}ms` : '';
     const ttsStr = message.tts_ms !== undefined ? `TTS: ${message.tts_ms}ms` : '';
-    const ttfaStr = message.ttfa_ms !== undefined ? `TTFA: ${message.ttfa_ms}ms` : '';
+    const audioReadyStr = message.audio_ready_ms !== undefined ? `Audio ready: ${message.audio_ready_ms}ms` : '';
 
-    const breakdown = [asrStr, transStr, ttftStr, ttsStr, ttfaStr].filter(Boolean).join(' | ');
+    const breakdown = [asrStr, transStr, textReadyStr, ttsStr, audioReadyStr].filter(Boolean).join(' | ');
     const breakdownMsg = breakdown ? ` [${breakdown}]` : '';
 
     logEvent(`Translated from ${senderTag || 'peer'}: ${message.translation.text}${breakdownMsg}`);
@@ -526,4 +546,3 @@ function unlockAudio() {
     logEvent(`Audio unlock warning: ${e.message}`);
   }
 }
-

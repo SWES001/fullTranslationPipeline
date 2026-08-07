@@ -96,22 +96,21 @@
         <label>
           <span data-i18n="translation_model_label">Translation model</span>
           <select id="modelName">
+            <option value="fake">Fake Translator (Simulator / Offline)</option>
             <option value="bytecompute/gemma-4-E4B-it" selected>Gemma 4 E4B (ByteCompute API)</option>
             <option value="tencent/Hy-MT2-1.8B">Hy-MT2-1.8B</option>
-            <option value="cyberagent/CAT-Translate-3.3b">CAT-Translate-3.3B</option>
-            <option value="Qwen/Qwen3-8B">Qwen3-8B</option>
           </select>
         </label>
 
         <label>
           <span data-i18n="tts_model_label">TTS model</span>
           <select id="ttsModel">
+            <option value="fake">Fake TTS (No audio / Offline)</option>
             <option value="Kokoro-82M-Server" selected>Kokoro-82M (Port 31241)</option>
             <option value="bytecompute/higgs-speech-v3">Higgs Speech V3 (ByteCompute API)</option>
             <option value="Higgs-TTS-v3">Higgs-TTS-v3 (Port 31250)</option>
             <option value="boson/higgs-audio-v2.5">Higgs Audio V2.5 (ByteCompute API)</option>
             <option value="Moss-TTS-v1.5">Moss-TTS-v1.5</option>
-            <option value="Qwen3-TTS-1.7B">Qwen3-TTS-1.7B</option>
           </select>
         </label>
 

@@ -22,6 +22,17 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/config")
+async def public_config() -> dict[str, str]:
+    return {
+        "source_language": config.default_source_language,
+        "target_language": config.default_target_language,
+        "translation_model": config.translation_model,
+        "asr_model": config.asr_model,
+        "tts_model": config.tts_model,
+    }
+
+
 @app.post("/offer", response_model=OfferResponse)
 async def offer(request: OfferRequest) -> OfferResponse:
     """Accept a browser WebRTC offer and return the server SDP answer."""

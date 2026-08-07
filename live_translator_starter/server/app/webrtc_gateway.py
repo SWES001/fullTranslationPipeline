@@ -7,6 +7,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription
 from aiortc.rtcdatachannel import RTCDataChannel
 from aiortc.mediastreams import MediaStreamTrack
 import av
+from fastapi import HTTPException
 
 from server.app.config import config
 from server.app.pipeline.session import TranslationSession
@@ -15,6 +16,7 @@ from server.app.pipeline.vad import WebRTCEndpointDetector
 
 
 PEER_CONNECTIONS: set[RTCPeerConnection] = set()
+PEER_CLEANUPS: dict[RTCPeerConnection, Callable[[str], Awaitable[None]]] = {}
 
 
 class RoomManager:
@@ -31,6 +33,8 @@ class RoomManager:
         session: TranslationSession,
         emit_func: Callable[[dict], Awaitable[None]],
     ) -> None:
+        if self.has_client(room_id, client_id):
+            raise ValueError(f"Username '{client_id}' is already in room '{room_id}'.")
         if room_id not in self.rooms:
             self.rooms[room_id] = {}
         self.rooms[room_id][client_id] = {
@@ -39,8 +43,19 @@ class RoomManager:
         }
         print(f"[RoomManager] Client '{client_id}' joined room '{room_id}'. Active clients in room: {list(self.rooms[room_id].keys())}")
 
-    def unregister_client(self, room_id: str, client_id: str) -> None:
+    def has_client(self, room_id: str, client_id: str) -> bool:
+        normalized = client_id.casefold()
+        return any(existing.casefold() == normalized for existing in self.rooms.get(room_id, {}))
+
+    def unregister_client(
+        self,
+        room_id: str,
+        client_id: str,
+        session: Optional[TranslationSession] = None,
+    ) -> None:
         if room_id in self.rooms and client_id in self.rooms[room_id]:
+            if session is not None and self.rooms[room_id][client_id]["session"] is not session:
+                return
             del self.rooms[room_id][client_id]
             print(f"[RoomManager] Client '{client_id}' left room '{room_id}'. Remaining clients: {list(self.rooms[room_id].keys())}")
             if not self.rooms[room_id]:
@@ -124,9 +139,12 @@ ROOM_MANAGER = RoomManager()
 
 
 def finish_session(session: TranslationSession, client_id: str) -> None:
-    metrics_path = session.save_metrics()
-    if metrics_path:
-        print(f"[Metrics] Saved session metrics for '{client_id}' to {metrics_path}")
+    try:
+        metrics_path = session.save_metrics()
+        if metrics_path:
+            print(f"[Metrics] Saved session metrics for '{client_id}' to {metrics_path}")
+    except OSError as exc:
+        print(f"[Metrics] Could not save session metrics for '{client_id}': {exc}")
 
 
 async def create_answer(request: OfferRequest) -> dict[str, str]:
@@ -136,9 +154,17 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
     WebRTC data channel. Server-side TTS audio can be added later by adding
     a custom MediaStreamTrack back to the peer connection.
     """
-    client_id = request.client_id or f"client-{str(uuid4())[:6]}"
-    is_room_mode = request.session_mode == "room" and bool(request.room_id)
-    room_id = request.room_id.strip() if is_room_mode else ""
+    requested_client_id = (request.client_id or "").strip()
+    client_id = requested_client_id or f"client-{str(uuid4())[:6]}"
+    requested_room_id = request.room_id.strip()
+    is_room_mode = request.session_mode == "room" and bool(requested_room_id)
+    room_id = requested_room_id if is_room_mode else ""
+
+    if is_room_mode and ROOM_MANAGER.has_client(room_id, client_id):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Username '{client_id}' is already in use in '{room_id}'. Choose another username.",
+        )
 
     print(f"[WebRTC] Creating answer (mode={request.session_mode}, room='{room_id}', client='{client_id}'): asr={request.asr_model}, tts={request.tts_model}, translator={request.model}")
 
@@ -154,6 +180,10 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
         voice_matching=request.voice_matching,
     )
     data_channel: Optional[RTCDataChannel] = None
+    audio_tasks: set[asyncio.Task] = set()
+    timeout_tasks: set[asyncio.Task] = set()
+    cleanup_lock = asyncio.Lock()
+    cleaned_up = False
 
     async def emit(message: dict) -> None:
         if data_channel and data_channel.readyState == "open":
@@ -161,6 +191,48 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
 
     if is_room_mode:
         ROOM_MANAGER.register_client(room_id, client_id, session, emit)
+
+    async def cleanup(reason: str) -> None:
+        nonlocal cleaned_up
+        async with cleanup_lock:
+            if cleaned_up:
+                return
+            cleaned_up = True
+
+        print(f"[WebRTC] Cleaning up client '{client_id}': {reason}")
+        current_task = asyncio.current_task()
+        for task in list(timeout_tasks):
+            if task is not current_task:
+                task.cancel()
+
+        if peer_connection.connectionState != "closed":
+            await peer_connection.close()
+
+        pending_audio = [task for task in audio_tasks if task is not current_task]
+        if pending_audio:
+            await asyncio.gather(*pending_audio, return_exceptions=True)
+
+        if is_room_mode:
+            ROOM_MANAGER.unregister_client(room_id, client_id, session)
+        finish_session(session, client_id)
+        PEER_CONNECTIONS.discard(peer_connection)
+        PEER_CLEANUPS.pop(peer_connection, None)
+
+    PEER_CLEANUPS[peer_connection] = cleanup
+
+    async def enforce_connection_timeout() -> None:
+        await asyncio.sleep(config.connection_timeout_seconds)
+        if peer_connection.connectionState != "connected":
+            await cleanup("connection setup timed out")
+
+    async def enforce_session_limit() -> None:
+        await asyncio.sleep(config.max_session_seconds)
+        await cleanup("maximum session duration reached")
+
+    for coroutine in (enforce_connection_timeout(), enforce_session_limit()):
+        task = asyncio.create_task(coroutine)
+        timeout_tasks.add(task)
+        task.add_done_callback(timeout_tasks.discard)
 
     @peer_connection.on("datachannel")
     def on_datachannel(channel: RTCDataChannel) -> None:
@@ -176,7 +248,7 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
     def on_track(track: MediaStreamTrack) -> None:
         print(f"[WebRTC] Received track: kind={track.kind} (client='{client_id}')")
         if track.kind == "audio":
-            asyncio.create_task(
+            task = asyncio.create_task(
                 consume_audio_track(
                     track=track,
                     session=session,
@@ -186,22 +258,30 @@ async def create_answer(request: OfferRequest) -> dict[str, str]:
                     client_id=client_id,
                 )
             )
+            audio_tasks.add(task)
+
+            def on_audio_done(done_task: asyncio.Task) -> None:
+                audio_tasks.discard(done_task)
+                if not cleaned_up:
+                    asyncio.create_task(cleanup("audio track ended"))
+
+            task.add_done_callback(on_audio_done)
 
     @peer_connection.on("connectionstatechange")
     async def on_connectionstatechange() -> None:
         state = peer_connection.connectionState
         print(f"[WebRTC] Peer connection state changed to: {state} (client='{client_id}')")
-        if state in {"failed", "closed", "disconnected"}:
-            if is_room_mode:
-                ROOM_MANAGER.unregister_client(room_id, client_id)
-            finish_session(session, client_id)
-            await peer_connection.close()
-            PEER_CONNECTIONS.discard(peer_connection)
+        if state in {"failed", "closed"}:
+            await cleanup(f"connection state changed to {state}")
 
-    offer = RTCSessionDescription(sdp=request.sdp, type=request.type)
-    await peer_connection.setRemoteDescription(offer)
-    answer = await peer_connection.createAnswer()
-    await peer_connection.setLocalDescription(answer)
+    try:
+        offer = RTCSessionDescription(sdp=request.sdp, type=request.type)
+        await peer_connection.setRemoteDescription(offer)
+        answer = await peer_connection.createAnswer()
+        await peer_connection.setLocalDescription(answer)
+    except Exception:
+        await cleanup("signaling failed")
+        raise
 
     print(f"[WebRTC] Signaling handshake complete for client '{client_id}'")
     return {
@@ -223,50 +303,71 @@ async def consume_audio_track(
 
     frames = []
     detector = WebRTCEndpointDetector()
-    
+    # ponytail: cap queued utterances to bound memory; use external inference workers for lossless sustained load.
+    utterances: asyncio.Queue[Optional[list]] = asyncio.Queue(maxsize=4)
+
+    def enqueue(utterance_frames: list) -> None:
+        if utterances.full():
+            utterances.get_nowait()
+            utterances.task_done()
+            print(f"[WebRTC] Dropped oldest queued utterance for '{client_id}' to preserve real-time latency.")
+        utterances.put_nowait(utterance_frames)
+
+    async def process_utterances() -> None:
+        while True:
+            utterance_frames = await utterances.get()
+            try:
+                if utterance_frames is None:
+                    return
+                print(f"[WebRTC] Processing {len(utterance_frames)} audio frames for '{client_id}'...")
+                event = await session.process_audio_window(utterance_frames)
+                if event:
+                    if is_room_mode and room_id:
+                        await ROOM_MANAGER.route_event(room_id, client_id, event)
+                    else:
+                        await emit(event)
+            except Exception as exc:
+                print(f"[WebRTC] Utterance processing failed for '{client_id}': {exc}")
+            finally:
+                utterances.task_done()
+
+    worker_task = asyncio.create_task(process_utterances())
+
     # We resample browser audio to 16kHz mono (standard format for VAD and ASR)
     resampler = av.AudioResampler(format='s16', layout='mono', rate=16000)
+    track_error: Optional[Exception] = None
 
-    while True:
-        try:
+    try:
+        while True:
             frame = await track.recv()
-        except Exception as exc:
-            print(f"[WebRTC] Audio track stream ended for client '{client_id}': {exc}")
-            if is_room_mode:
-                ROOM_MANAGER.unregister_client(room_id, client_id)
-            finish_session(session, client_id)
-            await emit({"type": "track_closed", "detail": str(exc)})
-            return
+            resampled_frames = resampler.resample(frame)
 
-        # Resample the browser's raw audio frame
-        resampled_frames = resampler.resample(frame)
-        
-        for r_frame in resampled_frames:
-            # Convert audio samples to raw bytes
-            pcm_bytes = r_frame.to_ndarray().tobytes()
-            
-            # Feed bytes into VAD to check if user is speaking or silent
-            endpoint_triggered = detector.process_audio_chunk(pcm_bytes)
-            
-            # If the user is speaking, accumulate the frame
-            if detector.in_speech:
-                frames.append(r_frame)
-                
-            # If the user stopped speaking (endpoint triggered), send to ASR!
-            if endpoint_triggered:
-                if frames:
-                    print(f"[WebRTC] VAD endpoint triggered for '{client_id}'. Transcribing {len(frames)} audio frames...")
-                    event = await session.process_audio_window(frames)
-                    if event:
-                        if is_room_mode and room_id:
-                            await ROOM_MANAGER.route_event(room_id, client_id, event)
-                        else:
-                            await emit(event)
+            for r_frame in resampled_frames:
+                pcm_bytes = r_frame.to_ndarray().tobytes()
+                endpoint_triggered = detector.process_audio_chunk(pcm_bytes)
+
+                if detector.in_speech:
+                    frames.append(r_frame)
+
+                if endpoint_triggered and frames:
+                    enqueue(frames)
                     frames = []
+    except Exception as exc:
+        track_error = exc
+        print(f"[WebRTC] Audio track stream ended for client '{client_id}': {exc}")
+    finally:
+        if frames:
+            enqueue(frames)
+        await utterances.join()
+        utterances.put_nowait(None)
+        await worker_task
+        if track_error:
+            await emit({"type": "track_closed", "detail": str(track_error)})
 
 
 async def shutdown_peer_connections() -> None:
-    coroutines = [pc.close() for pc in PEER_CONNECTIONS]
+    coroutines = [cleanup("server shutdown") for cleanup in list(PEER_CLEANUPS.values())]
     if coroutines:
         await asyncio.gather(*coroutines)
     PEER_CONNECTIONS.clear()
+    PEER_CLEANUPS.clear()

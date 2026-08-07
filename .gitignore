@@ -24,6 +24,10 @@ Thumbs.db
 *.mp3
 *.log
 
+# Runtime metrics
+live_translator_starter/metrics/
+live_translator_starter/session_metrics/
+
 # IDE files
 .vscode/
 .idea/
